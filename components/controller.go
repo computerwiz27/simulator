@@ -1,20 +1,23 @@
 package components
 
-func Run(f []byte) {
+func Run(lines []string, n int) {
 
 	pc := make(chan uint32)
-	reg0 := make(chan int32)
-	reg1 := make(chan int32)
-	reg2 := make(chan int32)
-	reg3 := make(chan int32)
+	regs := make([]chan int32, n)
 
 	registers := Registers{
-		pc:   pc,
-		reg0: reg0,
-		reg1: reg1,
-		reg2: reg2,
-		reg3: reg3,
+		pc:  pc,
+		reg: regs,
+	}
+
+	halt := make(chan bool)
+
+	flags := Flags{
+		halt: halt,
 	}
 
 	registers.pc <- 0
+	flags.halt <- false
+
+	Fetch(lines, registers, flags)
 }
