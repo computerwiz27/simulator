@@ -19,5 +19,5 @@ func Run(lines []string, n int) {
 	registers.pc <- 0
 	flags.halt <- false
 
-	Fetch(lines, registers, flags)
+	Fetch(registers, flags, lines)
 }
