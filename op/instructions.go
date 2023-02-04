@@ -24,7 +24,7 @@ const (
 	LD  //[regA] [mem addr]		load to register
 	LDI //[regA] [val]			load imidiate value to register
 	WRT //[regA] [mem addr]		write to memory
-	MV  //[regA] [regB]			copy from one register to another
+	MV  //[regA] [regB]			copy from register B to register A
 
 	//Controll flow operations
 	JMP //[val]					jump to instruction
@@ -63,3 +63,5 @@ func OperandsNo(op Op) int {
 
 	return n
 }
+
+var ControllFLowOps = []Op{JMP, BZ, BEQ, HLT}
