@@ -1,8 +1,8 @@
 package main
 
 import (
+	"flag"
 	"os"
-	"strings"
 
 	"github.com/computerwiz27/simulator/components"
 )
@@ -14,22 +14,18 @@ func check(e error) {
 }
 
 func main() {
-	regNo := 4
+	regNo := flag.Int("reg", 4, "Number of simulated registers")
 
-	args := os.Args
+	memFile := flag.String("memf", "mem.txt", "Text file location for simulated memory")
 
-	var f []byte
-	var err error
+	memSize := flag.Int("memSize", 256, "Size of simulated memory in bytes")
 
-	if len(args) != 1 {
-		f, err = os.ReadFile(args[1])
-	} else {
-		f, err = os.ReadFile("mem.txt")
-	}
+	memOut := flag.String("memOut", "mem.txt", "Location for output memory file")
 
+	flag.Parse()
+
+	f, err := os.ReadFile(*memFile)
 	check(err)
 
-	lines := strings.Split(string(f), "\n")
-
-	components.Run(lines, regNo)
+	components.Run(f, *memSize, *memOut, *regNo)
 }

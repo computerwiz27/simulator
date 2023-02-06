@@ -8,11 +8,16 @@ import (
 	"github.com/computerwiz27/simulator/op"
 )
 
-func Fetch(regs Registers, flg Flags, mem []string) {
+func Fetch(regs Registers, flg Flags, mem Memory) {
 	line := <-regs.pc
 	regs.pc <- line
 
-	tokens := strings.Split(mem[line], " ")
+	tmp := <-mem
+	mem <- tmp
+
+	lines := strings.Split(string(tmp), "\n")
+
+	tokens := strings.Split(lines[line], " ")
 
 	Decode(regs, flg, mem, tokens, line)
 }
@@ -29,7 +34,7 @@ func oprToInt(opr string) int {
 	return ret
 }
 
-func Decode(regs Registers, flg Flags, mem []string, tokens []string, line uint32) {
+func Decode(regs Registers, flg Flags, mem Memory, tokens []string, line uint32) {
 	var opc op.Op
 
 	switch tokens[0] {
@@ -92,7 +97,6 @@ func Decode(regs Registers, flg Flags, mem []string, tokens []string, line uint3
 
 	default:
 		fmt.Printf("Error: Token %s not on line %d recognised\n", tokens[0], line)
-		break
 	}
 
 	var oprs []int
