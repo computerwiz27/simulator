@@ -18,7 +18,15 @@ func main() {
 
 	args := os.Args
 
-	f, err := os.ReadFile(args[1])
+	var f []byte
+	var err error
+
+	if len(args) != 1 {
+		f, err = os.ReadFile(args[1])
+	} else {
+		f, err = os.ReadFile("mem.txt")
+	}
+
 	check(err)
 
 	lines := strings.Split(string(f), "\n")

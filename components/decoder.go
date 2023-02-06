@@ -10,6 +10,7 @@ import (
 
 func Fetch(regs Registers, flg Flags, mem []string) {
 	line := <-regs.pc
+	regs.pc <- line
 
 	tokens := strings.Split(mem[line], " ")
 
@@ -19,7 +20,7 @@ func Fetch(regs Registers, flg Flags, mem []string) {
 func oprToInt(opr string) int {
 	ret, err := strconv.Atoi(opr)
 
-	if err != nil {
+	if err == nil {
 		return ret
 	}
 
@@ -68,6 +69,9 @@ func Decode(regs Registers, flg Flags, mem []string, tokens []string, line uint3
 	case "LD", "ld":
 		opc = op.LD
 
+	case "LDI", "ldi":
+		opc = op.LDI
+
 	case "WRT", "wrt":
 		opc = op.WRT
 
@@ -94,7 +98,7 @@ func Decode(regs Registers, flg Flags, mem []string, tokens []string, line uint3
 	var oprs []int
 
 	for i := 0; i < op.OperandsNo(opc); i++ {
-		oprs[i] = oprToInt(tokens[i+1])
+		oprs = append(oprs, oprToInt(tokens[i+1]))
 	}
 
 	Execute(regs, flg, mem, opc, oprs)

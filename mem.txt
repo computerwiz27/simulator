@@ -1,0 +1,6 @@
+LD reg0 4
+LD reg1 5
+ADD reg1 reg0
+HLT
+5
+6

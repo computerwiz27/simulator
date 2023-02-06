@@ -8,7 +8,8 @@ import (
 )
 
 func increment(pc chan uint32) {
-	pc <- (<-pc + 1)
+	n := <-pc
+	pc <- (n + 1)
 }
 
 func Execute(regs Registers, flg Flags, mem []string, opc op.Op, oprs []int) {
@@ -98,6 +99,9 @@ func Execute(regs Registers, flg Flags, mem []string, opc op.Op, oprs []int) {
 		}
 
 	case op.HLT:
+
 		flg.halt <- true
 	}
+
+	Fetch(regs, flg, mem)
 }
