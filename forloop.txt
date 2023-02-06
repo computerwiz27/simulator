@@ -1,0 +1,5 @@
+LDI regi 0
+LD regap a
+LD regbp b
+LD regcp c
+for: 
