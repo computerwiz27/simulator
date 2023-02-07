@@ -8,6 +8,7 @@ import (
 	"github.com/computerwiz27/simulator/op"
 )
 
+// Fetch the next instruction from memory
 func Fetch(regs Registers, flg Flags, mem Memory) {
 	line := <-regs.pc
 	regs.pc <- line
@@ -22,21 +23,26 @@ func Fetch(regs Registers, flg Flags, mem Memory) {
 	Decode(regs, flg, mem, tokens, line)
 }
 
+// Convert operands from string to int
 func oprToInt(opr string) int {
 	ret, err := strconv.Atoi(opr)
 
+	//if there is no error the operand string only contained a number
 	if err == nil {
 		return ret
 	}
 
+	//otherwise the operand is of the form "regX"
 	ret, _ = strconv.Atoi(opr[3:])
 
 	return ret
 }
 
+// Decode the instruction
 func Decode(regs Registers, flg Flags, mem Memory, tokens []string, line uint32) {
 	var opc op.Op
 
+	//Match the first token with an instruction
 	switch tokens[0] {
 	case "ADD", "add":
 		opc = op.ADD
@@ -96,11 +102,12 @@ func Decode(regs Registers, flg Flags, mem Memory, tokens []string, line uint32)
 		opc = op.HLT
 
 	default:
-		fmt.Printf("Error: Token %s not on line %d recognised\n", tokens[0], line)
+		fmt.Printf("Error: Token \"%s\" on line %d is not recognised\n", tokens[0], line+1)
+		opc = op.HLT
 	}
 
+	//Get the instruction's operands
 	var oprs []int
-
 	for i := 0; i < op.OperandsNo(opc); i++ {
 		oprs = append(oprs, oprToInt(tokens[i+1]))
 	}

@@ -5,8 +5,12 @@ import (
 	"os"
 )
 
+// Initialises the channels for registers, flags and memory
 func initialise(memSize int, memFile []byte, regNo int) (Registers, Flags, Memory) {
+	//Set up registers channel with value 0
+	//Channel have buffer 1 so they can store a value
 	pc := make(chan uint32, 1)
+	pc <- 0
 
 	var regs []chan int32
 	for i := 0; i < regNo; i++ {
@@ -19,30 +23,28 @@ func initialise(memSize int, memFile []byte, regNo int) (Registers, Flags, Memor
 		reg: regs,
 	}
 
-	registers.pc <- 0
-
+	//Set up flags channel
 	halt := make(chan bool)
 
 	flags := Flags{
 		halt: halt,
 	}
 
+	//Set up memory channel with buffer 1
 	mem := make(Memory, 1)
 
 	var tmpMem []byte
 	tmpMem = append(tmpMem, memFile...)
 	tmpMem = append(tmpMem, []byte("\n")...)
 
-	for i := len(tmpMem); i < memSize; i++ {
-		tmpMem = append(tmpMem, 0)
-	}
-
 	mem <- tmpMem
 
 	return registers, flags, mem
 }
 
+// Finishing processes after execution is done
 func finish(registers Registers, memory Memory, memOut string, regNo int) {
+	//Print the values in the registers
 	for i := 0; i < regNo; i++ {
 		select {
 		case val, ok := <-registers.reg[i]:
@@ -54,9 +56,12 @@ func finish(registers Registers, memory Memory, memOut string, regNo int) {
 		}
 	}
 
+	//Print memory to a file where each line is a memory address
 	bytes := <-memory
+
+	//Remove all bytes that are emty or contain "\n"
 	for i := len(bytes) - 1; i >= 0; i-- {
-		if bytes[i] != 0x0a {
+		if !(bytes[i] == 0x00 || bytes[i] == 0x0a) {
 			break
 		}
 		bytes = bytes[:len(bytes)-1]
@@ -65,15 +70,17 @@ func finish(registers Registers, memory Memory, memOut string, regNo int) {
 	os.WriteFile(memOut, bytes, 0644)
 }
 
+// Runs the simulator with the given specifications
 func Run(memFile []byte, memSize int, memOut string, regNo int) {
 
 	registers, flags, memory := initialise(memSize, memFile, regNo)
 
 	go Fetch(registers, flags, memory)
 
+	//when the halt flag is passed the simulation is done
 	<-flags.halt
 
 	finish(registers, memory, memOut, regNo)
 
-	fmt.Println("done")
+	fmt.Println("Done!")
 }

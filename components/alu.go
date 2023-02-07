@@ -8,16 +8,21 @@ import (
 	"golang.org/x/exp/slices"
 )
 
+// Increment the program counter channel
 func increment(pc chan uint32) {
 	n := <-pc
 	pc <- (n + 1)
 }
 
+// Execute given instruction
 func Execute(regs Registers, flg Flags, mem Memory, opc op.Op, oprs []int) {
+	//Increment pc if it isn't a controll flow instruction
 	if !slices.Contains(op.ControllFLowOps, opc) {
 		increment(regs.pc)
 	}
 
+	//Execute the instruction
+	//! take care that the value in registers that are not output are not modified
 	switch opc {
 	case op.ADD:
 		regA, regB := <-regs.reg[oprs[0]], <-regs.reg[oprs[1]]
@@ -99,6 +104,7 @@ func Execute(regs Registers, flg Flags, mem Memory, opc op.Op, oprs []int) {
 		<-regs.reg[oprs[0]]
 		regs.reg[oprs[0]] <- int32(oprs[1])
 
+	//Only WRT modifies memory
 	case op.WRT:
 		WriteBack(regs, mem, oprs[0], oprs[1])
 
@@ -133,20 +139,35 @@ func Execute(regs Registers, flg Flags, mem Memory, opc op.Op, oprs []int) {
 		flg.halt <- true
 	}
 
-	Fetch(regs, flg, mem)
+	//Don't call fetch given the halt instruction
+	if opc != op.HLT {
+		Fetch(regs, flg, mem)
+	}
 }
 
-func WriteBack(regs Registers, mem Memory, reg int, loc int) {
+// Write register to memory
+func WriteBack(regs Registers, mem Memory, regA int, regB int) {
 	lines := strings.Split(string(<-mem), "\n")
 
-	val := <-regs.reg[reg]
-	regs.reg[reg] <- val
+	val := <-regs.reg[regA]
+	regs.reg[regA] <- val
+
+	loc := <-regs.reg[regB]
+	regs.reg[regB] <- loc
+
+	if int(loc) >= len(lines) {
+		for i := len(lines); i <= int(loc); i++ {
+			lines = append(lines, "")
+		}
+	}
 
 	lines[loc] = strconv.Itoa(int(val)) + "\n"
 
+	//make a temporary variable and append the new memory bytes
 	var tmp []byte
 	for i := range lines {
 		tmp = append(tmp, []byte(lines[i])...)
+		tmp = append(tmp, []byte("\n")...) //add a new line after every line
 	}
 
 	mem <- tmp

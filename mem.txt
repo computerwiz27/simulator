@@ -1,6 +1,11 @@
-LD reg0 4
-LD reg1 5
+LD reg0 5
+LD reg1 6
 ADD reg1 reg0
+WRT reg1 10
 HLT
 5
-6
+100
+
+
+
+105
