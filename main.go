@@ -14,7 +14,7 @@ func check(e error) {
 }
 
 func main() {
-	regNo := flag.Int("reg", 4, "Number of simulated registers")
+	regNo := flag.Int("reg", 8, "Number of simulated registers")
 
 	memFile := flag.String("memf", "mem.txt", "Text file location for simulated memory")
 
