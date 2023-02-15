@@ -1,19 +1,18 @@
 package op
 
-type op struct {
-	opc   int
-	class string
-	opNo  int
+type Op struct {
+	Name  string
+	Opc   int
+	Class string
+	OpNo  int
 }
 
 const (
 	//Arithmetic operations
-	ADD  int = iota //[regS] [regA] [regB]
-	ADDI            //[regS] [regA] [val]
-	SUB             //[regS] [regA] [regB]
-	SUBI            //[regS] [regA] [val]
-	MUL             //[regS] [regA] [regB]
-	DIV             //[regS] [regA] [regB]
+	ADD int = iota //[regS] [regA] [regB]
+	SUB            //[regS] [regA] [regB]
+	MUL            //[regS] [regA] [regB]
+	DIV            //[regS] [regA] [regB]
 
 	//Logical operations
 	AND //[regS] [regA] [regB]
@@ -23,7 +22,6 @@ const (
 
 	//Data transfer operations
 	LD  //[regA] [mem addr]		load to register
-	LDI //[regA] [val]			load imidiate value to register
 	MV  //[regA] [regB]			copy from register B to register A
 	WRT //[regA] [regB]			write value of regA to memory address in regB
 
@@ -33,98 +31,128 @@ const (
 	HLT //						halt
 )
 
-var Add = op{
-	opc:   ADD,
-	class: "ari",
-	opNo:  3,
+var Add = Op{
+	Name:  "ADD",
+	Opc:   ADD,
+	Class: "ari",
+	OpNo:  3,
 }
 
-var Sub = op{
-	opc:   SUB,
-	class: "ari",
-	opNo:  3,
+var Addi = Op{
+	Name:  "ADDI",
+	Opc:   ADD,
+	Class: "ari",
+	OpNo:  3,
 }
 
-var Subi = op{
-	opc:   SUBI,
-	class: "ari",
-	opNo:  3,
+var Sub = Op{
+	Name:  "SUB",
+	Opc:   SUB,
+	Class: "ari",
+	OpNo:  3,
 }
 
-var Mul = op{
-	opc:   MUL,
-	class: "ari",
-	opNo:  3,
+var Subi = Op{
+	Name:  "SUBI",
+	Opc:   SUB,
+	Class: "ari",
+	OpNo:  3,
 }
 
-var Div = op{
-	opc:   DIV,
-	class: "ari",
-	opNo:  3,
+var Mul = Op{
+	Name:  "MUL",
+	Opc:   MUL,
+	Class: "ari",
+	OpNo:  3,
 }
 
-var And = op{
-	opc:   AND,
-	class: "log",
-	opNo:  3,
+var Div = Op{
+	Name:  "DIV",
+	Opc:   DIV,
+	Class: "ari",
+	OpNo:  3,
 }
 
-var Or = op{
-	opc:   OR,
-	class: "log",
-	opNo:  3,
+var And = Op{
+	Name:  "AND",
+	Opc:   AND,
+	Class: "log",
+	OpNo:  3,
 }
 
-var Xor = op{
-	opc:   XOR,
-	class: "log",
-	opNo:  3,
+var Or = Op{
+	Name:  "OR",
+	Opc:   OR,
+	Class: "log",
+	OpNo:  3,
 }
 
-var Cmp = op{
-	opc:   CMP,
-	class: "log",
-	opNo:  3,
+var Xor = Op{
+	Name:  "XOR",
+	Opc:   XOR,
+	Class: "log",
+	OpNo:  3,
 }
 
-var Ld = op{
-	opc:   LD,
-	class: "dat",
-	opNo:  2,
+var Cmp = Op{
+	Name:  "CMP",
+	Opc:   CMP,
+	Class: "log",
+	OpNo:  3,
 }
 
-var Ldi = op{
-	opc:   LDI,
-	class: "dat",
-	opNo:  2,
+var Ld = Op{
+	Name:  "LD",
+	Opc:   LD,
+	Class: "dat",
+	OpNo:  2,
 }
 
-var Mv = op{
-	opc:   MV,
-	class: "dat",
-	opNo:  2,
+var Ldi = Op{
+	Name:  "LDI",
+	Opc:   LD,
+	Class: "dat",
+	OpNo:  2,
 }
 
-var Wrt = op{
-	opc:   WRT,
-	class: "dat",
-	opNo:  2,
+var Mv = Op{
+	Name:  "MV",
+	Opc:   MV,
+	Class: "dat",
+	OpNo:  2,
 }
 
-var Jmp = op{
-	opc:   LD,
-	class: "ctf",
-	opNo:  1,
+var Wrt = Op{
+	Name:  "WRT",
+	Opc:   WRT,
+	Class: "dat",
+	OpNo:  2,
 }
 
-var Beq = op{
-	opc:   BEQ,
-	class: "ctf",
-	opNo:  3,
+var Jmp = Op{
+	Name:  "JMP",
+	Opc:   LD,
+	Class: "ctf",
+	OpNo:  1,
 }
 
-var Hlt = op{
-	opc:   BEQ,
-	class: "ctf",
-	opNo:  0,
+var Beq = Op{
+	Name:  "BEQ",
+	Opc:   BEQ,
+	Class: "ctf",
+	OpNo:  3,
+}
+
+var Hlt = Op{
+	Name:  "HLT",
+	Opc:   BEQ,
+	Class: "ctf",
+	OpNo:  0,
+}
+
+var Instructions = []Op{
+	Add, Addi, Sub, Subi, Mul, Div,
+	And, Or, Xor, Cmp,
+	Ld, Ldi, Mv, Wrt,
+	Jmp, Beq, Hlt,
 }
