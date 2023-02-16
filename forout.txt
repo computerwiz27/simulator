@@ -1,0 +1,46 @@
+LDI reg1 0
+LDI reg2 25
+LDI reg4 35
+LDI reg6 45
+MV reg0 reg1
+ADD reg0 reg2
+MV reg3 reg0
+MV reg0 reg1
+ADD reg0 reg4
+MV reg5 reg0
+MUL reg3 reg5
+MV reg0 reg1
+ADD reg0 reg6
+WRT reg3 reg0
+ADDI reg1 1
+LDI reg0 5
+LT reg0 reg1
+SUBI reg0 1
+BZ reg0 4
+HLT
+
+
+
+2
+2
+2
+2
+2
+
+
+
+
+
+1
+2
+3
+4
+5
+
+
+
+
+
+
+
+875

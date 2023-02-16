@@ -22,10 +22,15 @@ func main() {
 
 	memOut := flag.String("memOut", "mem.txt", "Location for output memory file")
 
+	assemble := flag.Bool("asm", true, "Assemble from assembly to machine code")
+
 	flag.Parse()
 
 	f, err := os.ReadFile(*memFile)
 	check(err)
+
+	if *assemble {
+	}
 
 	components.Run(f, *memSize, *memOut, *regNo)
 }
