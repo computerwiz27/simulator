@@ -41,8 +41,10 @@ func Asemble(file []byte) []int {
 
 		ins := match(tokens[0])
 
+		memory = append(memory, ins.Opc)
+
 		for j := 1; j < 4; j++ {
-			if j+1 >= ins.OpNo {
+			if j > ins.OpNo {
 				memory = append(memory, 0)
 			} else {
 				memory = append(memory, oprToint(tokens[j]))
