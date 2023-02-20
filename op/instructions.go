@@ -10,9 +10,11 @@ type Op struct {
 const (
 	//Arithmetic operations
 	ADD int = iota //[regS] [regA] [regB]
-	SUB            //[regS] [regA] [regB]
-	MUL            //[regS] [regA] [regB]
-	DIV            //[regS] [regA] [regB]
+	ADDI
+	SUB //[regS] [regA] [regB]
+	SUBI
+	MUL //[regS] [regA] [regB]
+	DIV //[regS] [regA] [regB]
 
 	//Logical operations
 	AND //[regS] [regA] [regB]
@@ -21,15 +23,19 @@ const (
 	CMP //[regS] [regA] [regB]
 
 	//Data transfer operations
-	LD  //[regA] [mem addr]		load to register
+	LD //[regA] [mem addr]		load to register
+	LDI
 	MV  //[regA] [regB]			copy from register B to register A
 	WRT //[regA] [regB]			write value of regA to memory address in regB
 
 	//Controll flow operations
 	JMP //[val]					jump to instruction
 	BEQ //[regA] [regB] [val]	branch if equals
+	BZ  //[regA] [val]
 	HLT //						halt
 )
+
+//Arithmetic operations
 
 var Add = Op{
 	Name:  "ADD",
@@ -40,7 +46,7 @@ var Add = Op{
 
 var Addi = Op{
 	Name:  "ADDI",
-	Opc:   ADD,
+	Opc:   ADDI,
 	Class: "ari",
 	OpNo:  3,
 }
@@ -54,7 +60,7 @@ var Sub = Op{
 
 var Subi = Op{
 	Name:  "SUBI",
-	Opc:   SUB,
+	Opc:   SUBI,
 	Class: "ari",
 	OpNo:  3,
 }
@@ -110,7 +116,7 @@ var Ld = Op{
 
 var Ldi = Op{
 	Name:  "LDI",
-	Opc:   LD,
+	Opc:   LDI,
 	Class: "dat",
 	OpNo:  2,
 }
@@ -143,6 +149,13 @@ var Beq = Op{
 	OpNo:  3,
 }
 
+var Bz = Op{
+	Name:  "BZ",
+	Opc:   BZ,
+	Class: "ctf",
+	OpNo:  1,
+}
+
 var Hlt = Op{
 	Name:  "HLT",
 	Opc:   BEQ,
@@ -155,4 +168,24 @@ var Instructions = []Op{
 	And, Or, Xor, Cmp,
 	Ld, Ldi, Mv, Wrt,
 	Jmp, Beq, Hlt,
+}
+
+func MatchName(name string) Op {
+	for i := range Instructions {
+		if name == Instructions[i].Name {
+			return Instructions[i]
+		}
+	}
+
+	return Hlt
+}
+
+func MatchOpc(opc int) Op {
+	for i := range Instructions {
+		if opc == Instructions[i].Opc {
+			return Instructions[i]
+		}
+	}
+
+	return Hlt
 }

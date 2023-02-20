@@ -1,8 +1,8 @@
 package components
 
 type Registers struct {
-	pc  chan uint32
-	reg []chan int32
+	pc  chan uint
+	reg []chan int
 }
 
 type Flags struct {
@@ -10,3 +10,5 @@ type Flags struct {
 }
 
 type Memory chan []byte
+
+type Prog chan []int

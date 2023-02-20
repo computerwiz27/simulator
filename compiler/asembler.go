@@ -7,16 +7,6 @@ import (
 	"github.com/computerwiz27/simulator/op"
 )
 
-func match(insStr string) op.Op {
-	for ins := range op.Instructions {
-		if insStr == op.Instructions[ins].Name {
-			return op.Instructions[ins]
-		}
-	}
-
-	return op.Hlt
-}
-
 func oprToint(opr string) int {
 	ret, err := strconv.Atoi(opr)
 
@@ -39,7 +29,7 @@ func Asemble(file []byte) []int {
 	for i := range lines {
 		tokens := strings.Split(lines[i], " ")
 
-		ins := match(tokens[0])
+		ins := op.MatchName(tokens[0])
 
 		memory = append(memory, ins.Opc)
 

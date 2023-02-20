@@ -1,115 +1,85 @@
 package components
 
-import (
-	"strconv"
-	"strings"
-)
+import "github.com/computerwiz27/simulator/op"
 
 // Fetch the next instruction from memory
-func Fetch(regs Registers, flg Flags, mem Memory) {
-	line := <-regs.pc
-	regs.pc <- line
+func Fetch(regs Registers, flg Flags, mem Memory, prog Prog) {
+	counter := <-regs.pc
+	tmp := <-prog
 
-	tmp := <-mem
-	mem <- tmp
-
-	lines := strings.Split(string(tmp), "\n")
-
-	tokens := strings.Split(lines[line], " ")
-
-	Decode(regs, flg, mem, tokens, line)
-}
-
-// Convert operands from string to int
-func oprToInt(opr string) int {
-	ret, err := strconv.Atoi(opr)
-
-	//if there is no error the operand string only contained a number
-	if err == nil {
-		return ret
+	var tokens [4]int
+	for i := 0; i < 4; i++ {
+		tokens[i] = tmp[counter+1]
 	}
 
-	//otherwise the operand is of the form "regX"
-	ret, _ = strconv.Atoi(opr[3:])
+	regs.pc <- counter
+	prog <- tmp
 
-	return ret
+	Decode(regs, flg, mem, prog, tokens)
 }
 
 // Decode the instruction
-func Decode(regs Registers, flg Flags, mem Memory, tokens []string, line uint32) {
-	// var opc op.Op
+func Decode(regs Registers, flg Flags, mem Memory, prog Prog, tokens [4]int) {
+	ins := op.MatchOpc(tokens[0])
+	opc := ins.Opc
+	var vars [3]int
 
-	//Match the first token with an instruction
-	switch tokens[0] { /*
-			case "ADD", "add":
-				opc = op.ADD
+	switch ins.Class {
 
-			case "ADDI", "addi":
-				opc = op.ADDI
+	case "ari", "log":
+		vars[0] = tokens[1]
+		vars[1] = <-regs.reg[tokens[2]]
+		regs.reg[tokens[2]] <- vars[1]
 
-			case "SUB", "sub":
-				opc = op.SUB
+		if ins == op.Addi || ins == op.Subi {
+			opc--
+			ins = op.MatchOpc(opc)
 
-			case "SUBI", "subi":
-				opc = op.SUBI
+			vars[2] = tokens[3]
+		} else {
+			vars[2] = <-regs.reg[tokens[3]]
+			regs.reg[tokens[3]] <- vars[2]
+		}
 
-			case "MUL", "mul":
-				opc = op.MUL
+	case "dat":
+		vars[0] = tokens[1]
 
-			case "DIV", "div":
-				opc = op.DIV
+		if ins == op.Ldi {
+			vars[1] = tokens[2]
+		} else {
+			vars[1] = <-regs.reg[tokens[2]]
+			regs.reg[tokens[2]] <- vars[1]
+		}
 
-			case "AND", "and":
-				opc = op.AND
+		vars[2] = 0
 
-			case "OR", "or":
-				opc = op.OR
+	case "ctf":
+		switch ins {
+		case op.Jmp:
+			vars[0] = tokens[1]
+			vars[1] = 0
+			vars[2] = 0
 
-			case "XOR", "xor":
-				opc = op.XOR
+		case op.Beq:
+			vars[0] = <-regs.reg[tokens[1]]
+			regs.reg[tokens[1]] <- vars[0]
+			vars[1] = <-regs.reg[tokens[2]]
+			regs.reg[tokens[2]] <- vars[1]
+			vars[2] = tokens[3]
 
-			case "LT", "lt":
-				opc = op.LT
+		case op.Bz:
+			vars[0] = <-regs.reg[tokens[1]]
+			regs.reg[tokens[1]] <- vars[0]
+			vars[1] = tokens[2]
+			vars[2] = 0
 
-			case "EQ", "eq":
-				opc = op.EQ
+		case op.Hlt:
+			vars[0] = 0
+			vars[1] = 0
+			vars[2] = 0
+		}
 
-			case "LD", "ld":
-				opc = op.LD
-
-			case "LDI", "ldi":
-				opc = op.LDI
-
-			case "WRT", "wrt":
-				opc = op.WRT
-
-			case "MV", "mv":
-				opc = op.MV
-
-			case "JMP", "jmp":
-				opc = op.JMP
-
-			case "BZ", "bz":
-				opc = op.BZ
-
-			case "BEQ", "beq":
-				opc = op.BEQ
-
-			case "HLT", "hlt":
-				opc = op.HLT
-
-
-		default:
-			fmt.Printf("Error: Token \"%s\" on line %d is not recognised\n", tokens[0], line+1)
-			opc = op.HLT
-	*/
 	}
 
-	//Get the instruction's operands
-	// var oprs []int
-	// for i := 0; i < op.OperandsNo(opc); i++ {
-	// 	oprs = append(oprs, oprToInt(tokens[i+1]))
-	// }
-
-	//Execute(regs, flg, mem, opc, oprs)
+	Execute(regs, flg, mem, prog, opc, vars)
 }

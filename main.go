@@ -4,7 +4,6 @@ import (
 	"flag"
 	"os"
 
-	"github.com/computerwiz27/simulator/compiler"
 	"github.com/computerwiz27/simulator/components"
 )
 
@@ -23,17 +22,12 @@ func main() {
 
 	memOut := flag.String("memOut", "mem.txt", "Location for output memory file")
 
-	assemble := flag.Bool("asb", true, "Assemble from assembly to machine code")
+	assemble := flag.Bool("asb", false, "Assemble from assembly to machine code")
 
 	flag.Parse()
 
 	f, err := os.ReadFile(*memFile)
 	check(err)
 
-	if *assemble {
-		compiler.Asemble(f)
-		return
-	}
-
-	components.Run(f, *memSize, *memOut, *regNo)
+	components.Run(f, *memSize, *memOut, *regNo, *assemble)
 }

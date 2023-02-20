@@ -6,7 +6,7 @@ import (
 )
 
 // Initialises the channels for registers, flags and memory
-func initialise(memSize int, memFile []byte, regNo int) (Registers, Flags, Memory) {
+func initialise(memSize int, memFile []byte, regNo int, prog []int) (Registers, Flags, Memory, Prog) {
 	//Set up registers channel with value 0
 	//Channel have buffer 1 so they can store a value
 	pc := make(chan uint32, 1)
@@ -39,7 +39,11 @@ func initialise(memSize int, memFile []byte, regNo int) (Registers, Flags, Memor
 
 	mem <- tmpMem
 
-	return registers, flags, mem
+	// Set up program memory channel
+	program := make(Prog, 1)
+	program <- prog
+
+	return registers, flags, mem, program
 }
 
 // Finishing processes after execution is done
@@ -71,11 +75,11 @@ func finish(registers Registers, memory Memory, memOut string, regNo int) {
 }
 
 // Runs the simulator with the given specifications
-func Run(memFile []byte, memSize int, memOut string, regNo int) {
+func Run(memFile []byte, memSize int, memOut string, regNo int, prog []int) {
 
-	registers, flags, memory := initialise(memSize, memFile, regNo)
+	registers, flags, memory, program := initialise(memSize, memFile, regNo, prog)
 
-	go Fetch(registers, flags, memory)
+	go Fetch(registers, flags, memory, program)
 
 	//when the halt flag is passed the simulation is done
 	<-flags.halt
