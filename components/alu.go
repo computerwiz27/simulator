@@ -1,6 +1,7 @@
 package components
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -15,6 +16,8 @@ func increment(pc chan uint) {
 
 // Execute given instruction
 func Execute(regs Registers, flg Flags, mem Memory, prog Prog, ins op.Op, vars [3]int) {
+	fmt.Printf("Executing %s %d %d %d\n", ins.Name, vars[0], vars[1], vars[2])
+
 	if ins.Class != "ctf" {
 		increment(regs.pc)
 	}

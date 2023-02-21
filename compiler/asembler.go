@@ -42,7 +42,5 @@ func Asemble(file []byte) []int {
 		}
 	}
 
-	print(memory)
-
 	return memory
 }

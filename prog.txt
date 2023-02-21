@@ -1,5 +1,6 @@
-LD reg0 0
-LD reg1 1
-ADD reg2 reg0 reg1
-WRTI 3 reg2
+LDI reg0 10
+LDI reg1 10
+BEQ reg0 reg1 4
+HLT
+ADDI reg0 reg0 1
 HLT
