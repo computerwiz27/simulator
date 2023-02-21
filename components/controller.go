@@ -3,18 +3,20 @@ package components
 import (
 	"fmt"
 	"os"
+
+	"github.com/computerwiz27/simulator/compiler"
 )
 
 // Initialises the channels for registers, flags and memory
-func initialise(memSize int, memFile []byte, regNo int, prog []int) (Registers, Flags, Memory, Prog) {
+func initialise(memFile []byte, regNo int, progFile []byte) (Registers, Flags, Memory, Prog) {
 	//Set up registers channel with value 0
 	//Channel have buffer 1 so they can store a value
-	pc := make(chan uint32, 1)
+	pc := make(chan uint, 1)
 	pc <- 0
 
-	var regs []chan int32
+	var regs []chan int
 	for i := 0; i < regNo; i++ {
-		regs = append(regs, make(chan int32, 1))
+		regs = append(regs, make(chan int, 1))
 		regs[i] <- 0
 	}
 
@@ -41,7 +43,7 @@ func initialise(memSize int, memFile []byte, regNo int, prog []int) (Registers, 
 
 	// Set up program memory channel
 	program := make(Prog, 1)
-	program <- prog
+	program <- compiler.Asemble(progFile)
 
 	return registers, flags, mem, program
 }
@@ -75,9 +77,9 @@ func finish(registers Registers, memory Memory, memOut string, regNo int) {
 }
 
 // Runs the simulator with the given specifications
-func Run(memFile []byte, memSize int, memOut string, regNo int, prog []int) {
+func Run(memFile []byte, memOut string, regNo int, progFile []byte) {
 
-	registers, flags, memory, program := initialise(memSize, memFile, regNo, prog)
+	registers, flags, memory, program := initialise(memFile, regNo, progFile)
 
 	go Fetch(registers, flags, memory, program)
 

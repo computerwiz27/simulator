@@ -16,18 +16,22 @@ func check(e error) {
 func main() {
 	regNo := flag.Int("reg", 8, "Number of simulated registers")
 
-	memFile := flag.String("memf", "mem.txt", "Text file location for simulated memory")
+	memFile := flag.String("mem", "mem.txt", "Text file location containing simulated memory")
 
-	memSize := flag.Int("memSize", 256, "Size of simulated memory in bytes")
+	progFile := flag.String("prog", "prog.txt", "Text file location containing program ")
+
+	// memSize := flag.Int("memSize", 256, "Size of simulated memory in bytes")
 
 	memOut := flag.String("memOut", "mem.txt", "Location for output memory file")
 
-	assemble := flag.Bool("asb", false, "Assemble from assembly to machine code")
+	// assemble := flag.Bool("asb", false, "Assemble from assembly to machine code")
 
 	flag.Parse()
 
-	f, err := os.ReadFile(*memFile)
+	mem, err := os.ReadFile(*memFile)
 	check(err)
 
-	components.Run(f, *memSize, *memOut, *regNo, *assemble)
+	prog, err := os.ReadFile(*progFile)
+
+	components.Run(mem, *memOut, *regNo, prog)
 }

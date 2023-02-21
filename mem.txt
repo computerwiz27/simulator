@@ -1,11 +1,4 @@
-LD reg0 6
-LD reg1 7
-ADD reg1 reg0
-LDI reg2 10
-WRT reg1 reg2
-HLT
-10
-5
+100
+2000
 
-
-10
+2100

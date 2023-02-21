@@ -1,6 +1,11 @@
 package components
 
-import "github.com/computerwiz27/simulator/op"
+import (
+	"strconv"
+	"strings"
+
+	"github.com/computerwiz27/simulator/op"
+)
 
 // Fetch the next instruction from memory
 func Fetch(regs Registers, flg Flags, mem Memory, prog Prog) {
@@ -9,7 +14,7 @@ func Fetch(regs Registers, flg Flags, mem Memory, prog Prog) {
 
 	var tokens [4]int
 	for i := 0; i < 4; i++ {
-		tokens[i] = tmp[counter+1]
+		tokens[i] = tmp[int(counter)+i]
 	}
 
 	regs.pc <- counter
@@ -42,10 +47,30 @@ func Decode(regs Registers, flg Flags, mem Memory, prog Prog, tokens [4]int) {
 		}
 
 	case "dat":
-		vars[0] = tokens[1]
+		if ins == op.Wrti {
+			opc--
+			ins = op.MatchOpc(opc)
+
+			vars[0] = tokens[1]
+		} else if ins == op.Wrt {
+			vars[0] = <-regs.reg[tokens[1]]
+			regs.reg[tokens[1]] <- vars[0]
+		} else {
+			vars[0] = tokens[1]
+		}
 
 		if ins == op.Ldi {
+			opc--
+			ins = op.MatchOpc(opc)
+
 			vars[1] = tokens[2]
+		} else if ins == op.Ld {
+			tmp := <-mem
+			lines := strings.Split(string(tmp), "\n")
+
+			vars[1], _ = strconv.Atoi(lines[tokens[2]])
+
+			mem <- tmp
 		} else {
 			vars[1] = <-regs.reg[tokens[2]]
 			regs.reg[tokens[2]] <- vars[1]
@@ -81,5 +106,5 @@ func Decode(regs Registers, flg Flags, mem Memory, prog Prog, tokens [4]int) {
 
 	}
 
-	Execute(regs, flg, mem, prog, opc, vars)
+	Execute(regs, flg, mem, prog, ins, vars)
 }

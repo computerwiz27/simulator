@@ -25,8 +25,9 @@ const (
 	//Data transfer operations
 	LD //[regA] [mem addr]		load to register
 	LDI
-	MV  //[regA] [regB]			copy from register B to register A
-	WRT //[regA] [regB]			write value of regA to memory address in regB
+	MV   //[regA] [regB]			copy from register B to register A
+	WRT  //[regA] [regB]			write value of regB to memory address in regA
+	WRTI //[val] [regA]
 
 	//Controll flow operations
 	JMP //[val]					jump to instruction
@@ -135,6 +136,13 @@ var Wrt = Op{
 	OpNo:  2,
 }
 
+var Wrti = Op{
+	Name:  "WRTI",
+	Opc:   WRTI,
+	Class: "dat",
+	OpNo:  2,
+}
+
 var Jmp = Op{
 	Name:  "JMP",
 	Opc:   LD,
@@ -158,7 +166,7 @@ var Bz = Op{
 
 var Hlt = Op{
 	Name:  "HLT",
-	Opc:   BEQ,
+	Opc:   HLT,
 	Class: "ctf",
 	OpNo:  0,
 }
@@ -166,8 +174,8 @@ var Hlt = Op{
 var Instructions = []Op{
 	Add, Addi, Sub, Subi, Mul, Div,
 	And, Or, Xor, Cmp,
-	Ld, Ldi, Mv, Wrt,
-	Jmp, Beq, Hlt,
+	Ld, Ldi, Mv, Wrt, Wrti,
+	Jmp, Beq, Bz, Hlt,
 }
 
 func MatchName(name string) Op {
