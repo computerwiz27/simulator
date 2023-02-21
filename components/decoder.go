@@ -66,11 +66,15 @@ func Decode(regs Registers, flg Flags, mem Memory, prog Prog, tokens [4]int) {
 			vars[1] = tokens[2]
 		} else if ins == op.Ld {
 			tmp := <-mem
+			loc := <-regs.reg[tokens[2]]
+
 			lines := strings.Split(string(tmp), "\n")
 
-			vars[1], _ = strconv.Atoi(lines[tokens[2]])
+			val, _ := strconv.Atoi(lines[loc])
+			vars[1] = val
 
 			mem <- tmp
+			regs.reg[tokens[2]] <- loc
 		} else {
 			vars[1] = <-regs.reg[tokens[2]]
 			regs.reg[tokens[2]] <- vars[1]

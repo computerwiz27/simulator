@@ -81,18 +81,18 @@ func Execute(regs Registers, flg Flags, mem Memory, prog Prog, ins op.Op, vars [
 		switch ins {
 		case op.Jmp:
 			<-regs.pc
-			regs.pc <- uint(vars[0])
+			regs.pc <- uint(vars[0]) * 4
 		case op.Beq:
 			if vars[0] == vars[1] {
 				<-regs.pc
-				regs.pc <- uint(vars[2])
+				regs.pc <- uint(vars[2]) * 4
 			} else {
 				increment(regs.pc)
 			}
 		case op.Bz:
 			if vars[0] == 0 {
 				<-regs.pc
-				regs.pc <- uint(vars[1])
+				regs.pc <- uint(vars[1]) * 4
 			} else {
 				increment(regs.pc)
 			}

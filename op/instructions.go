@@ -145,7 +145,7 @@ var Wrti = Op{
 
 var Jmp = Op{
 	Name:  "JMP",
-	Opc:   LD,
+	Opc:   JMP,
 	Class: "ctf",
 	OpNo:  1,
 }
@@ -161,7 +161,7 @@ var Bz = Op{
 	Name:  "BZ",
 	Opc:   BZ,
 	Class: "ctf",
-	OpNo:  1,
+	OpNo:  2,
 }
 
 var Hlt = Op{

@@ -32,6 +32,7 @@ func main() {
 	check(err)
 
 	prog, err := os.ReadFile(*progFile)
+	check(err)
 
 	components.Run(mem, *memOut, *regNo, prog)
 }
