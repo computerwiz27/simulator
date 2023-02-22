@@ -9,35 +9,36 @@ type Op struct {
 
 const (
 	//Arithmetic operations
-	ADD int = iota //[regS] [regA] [regB]
+	ADD int = iota
 	ADDI
-	SUB //[regS] [regA] [regB]
+	SUB
 	SUBI
-	MUL //[regS] [regA] [regB]
-	DIV //[regS] [regA] [regB]
+	MUL
+	DIV
 
 	//Logical operations
-	AND //[regS] [regA] [regB]
-	OR  //[regS] [regA] [regB]
-	XOR //[regS] [regA] [regB]
-	CMP //[regS] [regA] [regB]
+	AND
+	OR
+	XOR
+	CMP
 
 	//Data transfer operations
-	LD //[regA] [mem addr]		load to register
+	LD
 	LDI
-	MV   //[regA] [regB]			copy from register B to register A
-	WRT  //[regA] [regB]			write value of regB to memory address in regA
-	WRTI //[val] [regA]
+	MV
+	WRT
+	WRTI
 
 	//Controll flow operations
-	JMP //[val]					jump to instruction
-	BEQ //[regA] [regB] [val]	branch if equals
-	BZ  //[regA] [val]
-	HLT //						halt
+	JMP
+	BEQ
+	BZ
+	HLT
 )
 
 //Arithmetic operations
 
+// ADD regD regSA regSB
 var Add = Op{
 	Name:  "ADD",
 	Opc:   ADD,
@@ -45,6 +46,7 @@ var Add = Op{
 	OpNo:  3,
 }
 
+// ADDI regD regS [val]
 var Addi = Op{
 	Name:  "ADDI",
 	Opc:   ADDI,
@@ -52,6 +54,7 @@ var Addi = Op{
 	OpNo:  3,
 }
 
+// SUB regD regSA regSB
 var Sub = Op{
 	Name:  "SUB",
 	Opc:   SUB,
@@ -59,6 +62,7 @@ var Sub = Op{
 	OpNo:  3,
 }
 
+// SUBI regD regS [val]
 var Subi = Op{
 	Name:  "SUBI",
 	Opc:   SUBI,
@@ -66,6 +70,7 @@ var Subi = Op{
 	OpNo:  3,
 }
 
+// MUL regD regSA regSB
 var Mul = Op{
 	Name:  "MUL",
 	Opc:   MUL,
@@ -73,6 +78,7 @@ var Mul = Op{
 	OpNo:  3,
 }
 
+// DIV regD regSA regSB
 var Div = Op{
 	Name:  "DIV",
 	Opc:   DIV,
@@ -80,6 +86,9 @@ var Div = Op{
 	OpNo:  3,
 }
 
+// Logical operations
+
+// AND regD regSA regSB
 var And = Op{
 	Name:  "AND",
 	Opc:   AND,
@@ -87,6 +96,7 @@ var And = Op{
 	OpNo:  3,
 }
 
+// OR regD regSA regSB
 var Or = Op{
 	Name:  "OR",
 	Opc:   OR,
@@ -94,6 +104,7 @@ var Or = Op{
 	OpNo:  3,
 }
 
+// XOR regD regSA regSB
 var Xor = Op{
 	Name:  "XOR",
 	Opc:   XOR,
@@ -101,6 +112,7 @@ var Xor = Op{
 	OpNo:  3,
 }
 
+// CMP regD regSA regSB
 var Cmp = Op{
 	Name:  "CMP",
 	Opc:   CMP,
@@ -108,6 +120,9 @@ var Cmp = Op{
 	OpNo:  3,
 }
 
+// Data transfer operations
+
+// LD regD regS
 var Ld = Op{
 	Name:  "LD",
 	Opc:   LD,
@@ -115,6 +130,7 @@ var Ld = Op{
 	OpNo:  2,
 }
 
+// LDI regD [mem addr]
 var Ldi = Op{
 	Name:  "LDI",
 	Opc:   LDI,
@@ -122,6 +138,7 @@ var Ldi = Op{
 	OpNo:  2,
 }
 
+// MV regD regS
 var Mv = Op{
 	Name:  "MV",
 	Opc:   MV,
@@ -129,6 +146,7 @@ var Mv = Op{
 	OpNo:  2,
 }
 
+// WRT regD regS
 var Wrt = Op{
 	Name:  "WRT",
 	Opc:   WRT,
@@ -136,6 +154,7 @@ var Wrt = Op{
 	OpNo:  2,
 }
 
+// WRTI [mem addr] regS
 var Wrti = Op{
 	Name:  "WRTI",
 	Opc:   WRTI,
@@ -143,6 +162,7 @@ var Wrti = Op{
 	OpNo:  2,
 }
 
+// JMP [inst no]
 var Jmp = Op{
 	Name:  "JMP",
 	Opc:   JMP,
@@ -150,6 +170,7 @@ var Jmp = Op{
 	OpNo:  1,
 }
 
+// BEQ regSA regSB [inst no]
 var Beq = Op{
 	Name:  "BEQ",
 	Opc:   BEQ,
@@ -157,6 +178,7 @@ var Beq = Op{
 	OpNo:  3,
 }
 
+// BZ regS [inst no]
 var Bz = Op{
 	Name:  "BZ",
 	Opc:   BZ,
@@ -164,6 +186,7 @@ var Bz = Op{
 	OpNo:  2,
 }
 
+// HLT
 var Hlt = Op{
 	Name:  "HLT",
 	Opc:   HLT,
@@ -171,6 +194,7 @@ var Hlt = Op{
 	OpNo:  0,
 }
 
+// List of all instructions
 var Instructions = []Op{
 	Add, Addi, Sub, Subi, Mul, Div,
 	And, Or, Xor, Cmp,
@@ -178,6 +202,8 @@ var Instructions = []Op{
 	Jmp, Beq, Bz, Hlt,
 }
 
+/* Match the name passed as a string to an instruction*/
+// Defaults to Hlt if name is not recognised.
 func MatchName(name string) Op {
 	for i := range Instructions {
 		if name == Instructions[i].Name {
@@ -188,6 +214,8 @@ func MatchName(name string) Op {
 	return Hlt
 }
 
+// Match the op code passed as an integer to an instruction
+// Defaults to Hlt if opc is not recognised.
 func MatchOpc(opc int) Op {
 	for i := range Instructions {
 		if opc == Instructions[i].Opc {
