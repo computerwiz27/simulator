@@ -43,7 +43,7 @@ func initialise(memFile []byte, regNo int, progFile []byte) (Registers, Flags, M
 
 	// Set up program memory channel
 	program := make(Prog, 1)
-	program <- compiler.Asemble(progFile)
+	program <- compiler.Assemble(progFile)
 
 	return registers, flags, mem, program
 }

@@ -26,6 +26,7 @@ const (
 	LD
 	LDI
 	MV
+	MVI
 	WRT
 	WRTI
 
@@ -146,6 +147,14 @@ var Mv = Op{
 	OpNo:  2,
 }
 
+// MVI regD val
+var Mvi = Op{
+	Name:  "MVI",
+	Opc:   MVI,
+	Class: "dat",
+	OpNo:  2,
+}
+
 // WRT regD regS
 var Wrt = Op{
 	Name:  "WRT",
@@ -198,7 +207,7 @@ var Hlt = Op{
 var Instructions = []Op{
 	Add, Addi, Sub, Subi, Mul, Div,
 	And, Or, Xor, Cmp,
-	Ld, Ldi, Mv, Wrt, Wrti,
+	Ld, Ldi, Mv, Mvi, Wrt, Wrti,
 	Jmp, Beq, Bz, Hlt,
 }
 

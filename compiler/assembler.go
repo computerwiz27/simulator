@@ -15,13 +15,13 @@ func oprToint(opr string) int {
 		return ret
 	}
 
-	//otherwise the operand is of the form "regX"
+	//otherwise assume the operand is of the form "regX"
 	ret, _ = strconv.Atoi(opr[3:])
 
 	return ret
 }
 
-func Asemble(file []byte) []int {
+func Assemble(file []byte) []int {
 	var memory []int
 
 	lines := strings.Split(string(file), "\n")

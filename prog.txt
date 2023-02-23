@@ -1,5 +1,5 @@
-LDI reg0 10
-LDI reg1 10
+MVI reg0 10
+MVI reg1 10
 BEQ reg0 reg1 4
 HLT
 ADDI reg0 reg0 1
