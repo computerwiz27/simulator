@@ -1,14 +1,12 @@
 MVI reg0 0
-MVI reg7 0
 MVI reg1 0
 MVI reg2 1
-MVI reg10 90
-BEQ reg10 reg7 13
+MVI reg10 10
+BEQ reg10 reg0 11
 WRT reg0 reg1
 ADDI reg0 reg0 1
 ADD reg3 reg1 reg2
 MV reg1 reg2
 MV reg2 reg3
-ADDI reg7 reg7 1
-JMP 5
+JMP 4
 HLT

@@ -14,13 +14,9 @@ func check(e error) {
 }
 
 func main() {
-	regNo := flag.Int("reg", 8, "Number of simulated registers")
-
 	memFile := flag.String("mem", "mem.txt", "Text file location containing simulated memory")
 
 	progFile := flag.String("prog", "prog.txt", "Text file location containing program ")
-
-	// memSize := flag.Int("memSize", 256, "Size of simulated memory in bytes")
 
 	memOut := flag.String("memOut", "mem.txt", "Location for output memory file")
 
@@ -34,5 +30,5 @@ func main() {
 	prog, err := os.ReadFile(*progFile)
 	check(err)
 
-	components.Run(mem, *memOut, *regNo, prog)
+	components.Run(mem, *memOut, prog)
 }

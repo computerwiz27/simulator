@@ -6,9 +6,14 @@ type Registers struct {
 }
 
 type Flags struct {
-	halt chan bool
+	halt    chan bool
+	fetChck chan bool
+	decChk  chan bool
+	exChk   chan bool
+	wbChk   chan bool
+	wmChk   chan bool
 }
 
-type Memory chan []byte
+type Buffer chan []byte
 
-type Prog chan []int
+type Memory chan []byte

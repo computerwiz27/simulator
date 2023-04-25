@@ -1,18 +1,27 @@
 package op
 
+import "errors"
+
 type Op struct {
-	Name  string
-	Opc   int
-	Class string
-	OpNo  int
+	Name   string
+	Opc    uint
+	Class  string
+	OpNo   int
+	Imd    bool
+	OffSet bool
 }
 
 const (
+	//Controll flow operations
+	NOP uint = iota
+	HLT
+	JMP
+	BEQ
+	BZ
+
 	//Arithmetic operations
-	ADD int = iota
-	ADDI
+	ADD
 	SUB
-	SUBI
 	MUL
 	DIV
 
@@ -20,217 +29,222 @@ const (
 	AND
 	OR
 	XOR
+	NOT
 	CMP
 
 	//Data transfer operations
 	LD
-	LDI
-	MV
-	MVI
 	WRT
-	WRTI
-
-	//Controll flow operations
-	JMP
-	BEQ
-	BZ
-	HLT
+	MV
 )
+
+// Controll Flow operations
+
+// NOP
+var Nop = Op{
+	Name:   "NOP",
+	Opc:    NOP,
+	Class:  "ctf",
+	OpNo:   0,
+	Imd:    false,
+	OffSet: false,
+}
+
+// HLT
+var Hlt = Op{
+	Name:   "HLT",
+	Opc:    HLT,
+	Class:  "ctf",
+	OpNo:   0,
+	Imd:    false,
+	OffSet: false,
+}
+
+// JMP [inst no]
+var Jmp = Op{
+	Name:   "JMP",
+	Opc:    JMP,
+	Class:  "ctf",
+	OpNo:   1,
+	Imd:    false,
+	OffSet: false,
+}
+
+// BEQ regSA regSB [inst no]
+var Beq = Op{
+	Name:   "BEQ",
+	Opc:    BEQ,
+	Class:  "ctf",
+	OpNo:   3,
+	Imd:    true,
+	OffSet: false,
+}
+
+// BZ regS [inst no]
+var Bz = Op{
+	Name:   "BZ",
+	Opc:    BZ,
+	Class:  "ctf",
+	OpNo:   2,
+	Imd:    false,
+	OffSet: false,
+}
 
 //Arithmetic operations
 
 // ADD regD regSA regSB
 var Add = Op{
-	Name:  "ADD",
-	Opc:   ADD,
-	Class: "ari",
-	OpNo:  3,
-}
-
-// ADDI regD regS [val]
-var Addi = Op{
-	Name:  "ADDI",
-	Opc:   ADDI,
-	Class: "ari",
-	OpNo:  3,
+	Name:   "ADD",
+	Opc:    ADD,
+	Class:  "ari",
+	OpNo:   3,
+	Imd:    true,
+	OffSet: false,
 }
 
 // SUB regD regSA regSB
 var Sub = Op{
-	Name:  "SUB",
-	Opc:   SUB,
-	Class: "ari",
-	OpNo:  3,
-}
-
-// SUBI regD regS [val]
-var Subi = Op{
-	Name:  "SUBI",
-	Opc:   SUBI,
-	Class: "ari",
-	OpNo:  3,
+	Name:   "SUB",
+	Opc:    SUB,
+	Class:  "ari",
+	OpNo:   3,
+	Imd:    true,
+	OffSet: false,
 }
 
 // MUL regD regSA regSB
 var Mul = Op{
-	Name:  "MUL",
-	Opc:   MUL,
-	Class: "ari",
-	OpNo:  3,
+	Name:   "MUL",
+	Opc:    MUL,
+	Class:  "ari",
+	OpNo:   3,
+	Imd:    true,
+	OffSet: false,
 }
 
 // DIV regD regSA regSB
 var Div = Op{
-	Name:  "DIV",
-	Opc:   DIV,
-	Class: "ari",
-	OpNo:  3,
+	Name:   "DIV",
+	Opc:    DIV,
+	Class:  "ari",
+	OpNo:   3,
+	Imd:    true,
+	OffSet: false,
 }
 
 // Logical operations
 
 // AND regD regSA regSB
 var And = Op{
-	Name:  "AND",
-	Opc:   AND,
-	Class: "log",
-	OpNo:  3,
+	Name:   "AND",
+	Opc:    AND,
+	Class:  "log",
+	OpNo:   3,
+	Imd:    true,
+	OffSet: false,
 }
 
 // OR regD regSA regSB
 var Or = Op{
-	Name:  "OR",
-	Opc:   OR,
-	Class: "log",
-	OpNo:  3,
+	Name:   "OR",
+	Opc:    OR,
+	Class:  "log",
+	OpNo:   3,
+	Imd:    true,
+	OffSet: false,
 }
 
 // XOR regD regSA regSB
 var Xor = Op{
-	Name:  "XOR",
-	Opc:   XOR,
-	Class: "log",
-	OpNo:  3,
+	Name:   "XOR",
+	Opc:    XOR,
+	Class:  "log",
+	OpNo:   3,
+	Imd:    true,
+	OffSet: false,
+}
+
+// NOT regD regS
+var Not = Op{
+	Name:   "NOT",
+	Opc:    NOT,
+	Class:  "log",
+	OpNo:   2,
+	Imd:    true,
+	OffSet: false,
 }
 
 // CMP regD regSA regSB
 var Cmp = Op{
-	Name:  "CMP",
-	Opc:   CMP,
-	Class: "log",
-	OpNo:  3,
+	Name:   "CMP",
+	Opc:    CMP,
+	Class:  "log",
+	OpNo:   3,
+	Imd:    true,
+	OffSet: false,
 }
 
 // Data transfer operations
 
 // LD regD regS
 var Ld = Op{
-	Name:  "LD",
-	Opc:   LD,
-	Class: "dat",
-	OpNo:  2,
-}
-
-// LDI regD [mem addr]
-var Ldi = Op{
-	Name:  "LDI",
-	Opc:   LDI,
-	Class: "dat",
-	OpNo:  2,
-}
-
-// MV regD regS
-var Mv = Op{
-	Name:  "MV",
-	Opc:   MV,
-	Class: "dat",
-	OpNo:  2,
-}
-
-// MVI regD val
-var Mvi = Op{
-	Name:  "MVI",
-	Opc:   MVI,
-	Class: "dat",
-	OpNo:  2,
+	Name:   "LD",
+	Opc:    LD,
+	Class:  "dat",
+	OpNo:   2,
+	Imd:    true,
+	OffSet: true,
 }
 
 // WRT regD regS
 var Wrt = Op{
-	Name:  "WRT",
-	Opc:   WRT,
-	Class: "dat",
-	OpNo:  2,
+	Name:   "WRT",
+	Opc:    WRT,
+	Class:  "dat",
+	OpNo:   2,
+	Imd:    true,
+	OffSet: true,
 }
 
-// WRTI [mem addr] regS
-var Wrti = Op{
-	Name:  "WRTI",
-	Opc:   WRTI,
-	Class: "dat",
-	OpNo:  2,
-}
-
-// JMP [inst no]
-var Jmp = Op{
-	Name:  "JMP",
-	Opc:   JMP,
-	Class: "ctf",
-	OpNo:  1,
-}
-
-// BEQ regSA regSB [inst no]
-var Beq = Op{
-	Name:  "BEQ",
-	Opc:   BEQ,
-	Class: "ctf",
-	OpNo:  3,
-}
-
-// BZ regS [inst no]
-var Bz = Op{
-	Name:  "BZ",
-	Opc:   BZ,
-	Class: "ctf",
-	OpNo:  2,
-}
-
-// HLT
-var Hlt = Op{
-	Name:  "HLT",
-	Opc:   HLT,
-	Class: "ctf",
-	OpNo:  0,
+// MV regD regS
+var Mv = Op{
+	Name:   "MV",
+	Opc:    MV,
+	Class:  "dat",
+	OpNo:   2,
+	Imd:    true,
+	OffSet: false,
 }
 
 // List of all instructions
-var Instructions = []Op{
-	Add, Addi, Sub, Subi, Mul, Div,
-	And, Or, Xor, Cmp,
-	Ld, Ldi, Mv, Mvi, Wrt, Wrti,
-	Jmp, Beq, Bz, Hlt,
+var instructions = []Op{
+	Nop, Jmp, Beq, Bz, Hlt,
+	Add, Sub, Mul, Div,
+	And, Or, Xor, Not, Cmp,
+	Ld, Mv, Wrt,
+	Jmp, Beq, Bz, Hlt, Nop,
 }
 
 /* Match the name passed as a string to an instruction*/
-// Defaults to Hlt if name is not recognised.
-func MatchName(name string) Op {
-	for i := range Instructions {
-		if name == Instructions[i].Name {
-			return Instructions[i]
+// Defaults to Nop if name is not recognised.
+func MatchName(name string) (Op, error) {
+	for i := range instructions {
+		if name == instructions[i].Name {
+			return instructions[i], nil
 		}
 	}
 
-	return Hlt
+	return Nop, errors.New("unrecognised symbol '" + name + "'")
 }
 
 // Match the op code passed as an integer to an instruction
-// Defaults to Hlt if opc is not recognised.
-func MatchOpc(opc int) Op {
-	for i := range Instructions {
-		if opc == Instructions[i].Opc {
-			return Instructions[i]
+// Defaults to Nop if opc is not recognised.
+func MatchOpc(opc uint) Op {
+	for i := range instructions {
+		if opc == instructions[i].Opc {
+			return instructions[i]
 		}
 	}
 
-	return Hlt
+	return Nop
 }

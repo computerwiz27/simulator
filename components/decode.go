@@ -1,123 +1,188 @@
 package components
 
 import (
-	"strconv"
-	"strings"
+	"encoding/binary"
 
 	"github.com/computerwiz27/simulator/op"
 )
 
-// Decode the instruction
-func Decode(regs Registers, flg Flags, mem Memory, prog Prog, tokens [4]int) {
-	ins := op.MatchOpc(tokens[0])
-	opc := ins.Opc
-	var vars [3]int
+func imdCheck(ins uint32) bool {
+	ins = ins << 5
+	ins = ins >> 31
 
-	switch ins.Class {
+	return ins == 1
+}
+
+func offSetCheck(ins uint32) bool {
+	ins = ins << 6
+	ins = ins >> 31
+
+	return ins == 1
+}
+
+func decodeUnsigned(val uint32, start int, end int) int {
+	val = val << start
+	val = val >> (start + (31 - end))
+
+	return int(val)
+}
+
+func decodeSigned(val uint32, start int, end int) int {
+	uval := val << (start + 1)
+	uval = uval >> (start + (31 - end) + 1)
+
+	signBit := val << start
+	signBit = signBit >> 31
+
+	var sign int
+	if signBit == 1 {
+		sign = -1
+	} else {
+		sign = 1
+	}
+
+	return int(uval) * sign
+}
+
+// Decode the instruction
+func Decode(regs Registers, flg Flags, mem Memory, prog Memory,
+	fet_dec Buffer, dec_ex Buffer) {
+
+	var fet_data []byte
+	select {
+	case fet_data = <-fet_dec:
+
+	default:
+		for i := 0; i < 4; i++ {
+			fet_data = append(fet_data, 0)
+		}
+	}
+
+	ins := binary.BigEndian.Uint32(fet_data)
+
+	opc := ((0b11111 << 27) & ins) >> 27
+	opr := op.MatchOpc(uint(opc))
+
+	imd := false
+	if opr.Imd {
+		imd = imdCheck(ins)
+	}
+
+	offSet := false
+	if opr.OffSet {
+		offSet = offSetCheck(ins)
+	}
+
+	var opds []int
+	for i := 0; i < 3; i++ {
+		opds = append(opds, 0)
+	}
+
+	switch opr.Class {
+	case "ctf":
+		switch opr {
+		case op.Nop, op.Hlt:
+
+		case op.Jmp:
+			opds[0] = decodeSigned(ins, 5, 31)
+
+		case op.Beq:
+			ra := decodeUnsigned(ins, 6, 10)
+			opds[0] = <-regs.reg[ra]
+			regs.reg[ra] <- opds[0]
+
+			opds[1] = decodeSigned(ins, 11, 19)
+
+			if imd {
+				opds[2] = decodeUnsigned(ins, 20, 31)
+			} else {
+				rb := decodeUnsigned(ins, 20, 24)
+				opds[2] = <-regs.reg[rb]
+				regs.reg[rb] <- opds[2]
+			}
+
+		case op.Bz:
+			ra := decodeUnsigned(ins, 5, 9)
+			opds[0] = <-regs.reg[ra]
+			regs.reg[ra] <- opds[0]
+
+			opds[1] = decodeSigned(ins, 10, 31)
+		}
 
 	case "ari", "log":
-		vars[0] = tokens[1]
-		vars[1] = <-regs.reg[tokens[2]]
-		regs.reg[tokens[2]] <- vars[1]
+		if opr == op.Not {
+			opds[0] = decodeUnsigned(ins, 6, 10)
 
-		if ins == op.Addi || ins == op.Subi {
-			opc--
-			ins = op.MatchOpc(opc)
-
-			vars[2] = tokens[3]
+			if imd {
+				opds[1] = decodeUnsigned(ins, 16, 31)
+			} else {
+				rs := decodeUnsigned(ins, 11, 15)
+				opds[1] = <-regs.reg[rs]
+				regs.reg[rs] <- opds[1]
+			}
 		} else {
-			vars[2] = <-regs.reg[tokens[3]]
-			regs.reg[tokens[3]] <- vars[2]
+			opds[0] = decodeUnsigned(ins, 6, 10)
+
+			rsa := decodeUnsigned(ins, 11, 15)
+			opds[1] = <-regs.reg[rsa]
+			regs.reg[rsa] <- opds[1]
+
+			if imd {
+				opds[2] = decodeUnsigned(ins, 16, 31)
+			} else {
+				rsb := decodeUnsigned(ins, 16, 20)
+				opds[2] = <-regs.reg[rsb]
+				regs.reg[rsb] <- opds[2]
+			}
 		}
 
 	case "dat":
-		switch ins {
+		switch opr {
 		case op.Ld:
-			tmp := <-mem
-			loc := <-regs.reg[tokens[2]]
+			opds[0] = decodeUnsigned(ins, 7, 11)
 
-			vars[0] = tokens[1]
+			if offSet {
+				rsb := decodeUnsigned(ins, 12, 16)
+				opds[1] = <-regs.reg[rsb]
+				regs.reg[rsb] <- opds[1]
+			}
 
-			lines := strings.Split(string(tmp), "\n")
-			val, _ := strconv.Atoi(lines[loc])
-			vars[1] = val
-
-			mem <- tmp
-			regs.reg[tokens[2]] <- loc
-
-		case op.Ldi:
-			opc--
-			ins = op.MatchOpc(opc)
-
-			tmp := <-mem
-
-			vars[0] = tokens[1]
-
-			lines := strings.Split(string(tmp), "\n")
-			val, _ := strconv.Atoi(lines[tokens[2]])
-			vars[1] = val
-
-			mem <- tmp
-
-		case op.Mv:
-			vars[0] = tokens[1]
-
-			vars[1] = <-regs.reg[tokens[2]]
-			regs.reg[tokens[2]] <- vars[1]
-
-		case op.Mvi:
-			opc--
-			ins = op.MatchOpc(opc)
-
-			vars[0] = tokens[1]
-			vars[1] = tokens[2]
+			if imd {
+				opds[2] = decodeUnsigned(ins, 17, 31)
+			} else {
+				rsa := decodeUnsigned(ins, 17, 21)
+				opds[2] = <-regs.reg[rsa]
+				regs.reg[rsa] <- opds[2]
+			}
 
 		case op.Wrt:
-			vars[0] = <-regs.reg[tokens[1]]
-			regs.reg[tokens[1]] <- vars[0]
+			rsa := decodeUnsigned(ins, 7, 11)
+			opds[0] = <-regs.reg[rsa]
+			regs.reg[rsa] <- opds[0]
 
-			vars[1] = <-regs.reg[tokens[2]]
-			regs.reg[tokens[2]] <- vars[1]
+			if offSet {
+				rsb := decodeUnsigned(ins, 12, 16)
+				opds[1] = <-regs.reg[rsb]
+				regs.reg[rsb] <- opds[1]
+			}
 
-		case op.Wrti:
-			opc--
-			ins = op.MatchOpc(opc)
-
-			vars[0] = tokens[1]
-
-			vars[1] = <-regs.reg[tokens[2]]
-			regs.reg[tokens[2]] <- vars[1]
+			if imd {
+				opds[2] = decodeUnsigned(ins, 17, 21)
+			} else {
+				rd := decodeUnsigned(ins, 17, 31)
+				opds[2] = <-regs.reg[rd]
+				regs.reg[rd] <- opds[2]
+			}
 		}
-
-		vars[2] = 0
-
-	case "ctf":
-		switch ins {
-		case op.Jmp:
-			vars[0] = tokens[1]
-			vars[1] = 0
-			vars[2] = 0
-
-		case op.Beq:
-			vars[0] = <-regs.reg[tokens[1]]
-			regs.reg[tokens[1]] <- vars[0]
-			vars[1] = <-regs.reg[tokens[2]]
-			regs.reg[tokens[2]] <- vars[1]
-			vars[2] = tokens[3]
-
-		case op.Bz:
-			vars[0] = <-regs.reg[tokens[1]]
-			regs.reg[tokens[1]] <- vars[0]
-			vars[1] = tokens[2]
-			vars[2] = 0
-
-		case op.Hlt:
-			vars[0] = 0
-			vars[1] = 0
-			vars[2] = 0
-		}
-
 	}
 
-	Execute(regs, flg, mem, prog, ins, vars)
+	var ex_data []byte
+	ex_data = append(ex_data, byte(opc))
+	for i := 0; i < 3; i++ {
+		ex_data = binary.BigEndian.AppendUint32(ex_data, uint32(opds[i]))
+	}
+
+	dec_ex <- ex_data
+
+	//flg.decChk <- true
 }

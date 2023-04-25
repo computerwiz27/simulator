@@ -1,17 +1,19 @@
 package components
 
 // Fetch the next instruction from memory
-func Fetch(regs Registers, flg Flags, mem Memory, prog Prog) {
+func Fetch(regs Registers, flg Flags, mem Memory, prog Memory, fet_dec Buffer) {
 	counter := <-regs.pc
 	tmp := <-prog
 
-	var tokens [4]int
+	var ins []byte
 	for i := 0; i < 4; i++ {
-		tokens[i] = tmp[int(counter)+i]
+		ins = append(ins, tmp[int(counter)+i])
 	}
+
+	fet_dec <- ins
 
 	regs.pc <- counter
 	prog <- tmp
 
-	Decode(regs, flg, mem, prog, tokens)
+	//flg.fetChck <- true
 }

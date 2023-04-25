@@ -1,10 +1,10 @@
-MVI reg0 0
-MVI reg1 0
+MVI reg0 0          
+MVI reg1 0          
 MVI reg3 15
 MVI reg5 30
 MVI reg11 -1
 BZ reg11 17
-ADD reg10 reg1 reg0
+ADD reg10 reg1 reg0 
 LD reg2 reg10
 ADD reg10 reg3 reg0
 LD reg4 reg10
@@ -16,3 +16,5 @@ MVI reg11 10
 CMP reg11 reg0 reg11
 JMP 5
 HLT
+
+

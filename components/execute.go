@@ -1,6 +1,7 @@
 package components
 
 import (
+	"encoding/binary"
 	"strconv"
 	"strings"
 
@@ -14,114 +15,154 @@ func increment(pc chan uint) {
 }
 
 // Execute given instruction
-func Execute(regs Registers, flg Flags, mem Memory, prog Prog, ins op.Op, vars [3]int) {
-	// fmt.Printf("Executing %s %d %d %d\n", ins.Name, vars[0], vars[1], vars[2])
+func Execute(regs Registers, flg Flags, mem Memory, prog Memory,
+	dec_ex Buffer /*, ex_wb Buffer, ex_wm Buffer*/) {
 
-	if ins.Class != "ctf" {
+	var dec_data []byte
+	select {
+	case dec_data = <-dec_ex:
+
+	default:
+		for i := 0; i < 13; i++ {
+			dec_data[i] = 0
+		}
+	}
+
+	opc := uint(dec_data[0])
+	opr := op.MatchOpc(opc)
+
+	var opds []int
+	for i := 1; i < 13; i += 4 {
+		uopds := binary.BigEndian.Uint32(dec_data[i : i+4])
+		opds = append(opds, int(uopds))
+	}
+
+	if opr.Class != "ctf" {
 		increment(regs.pc)
 	}
+
+	wb := false
+	wmem := false
 
 	var result int
 	var desReg int
 	var memLoc int
 
-	reg := false
-	wrt := false
-
-	switch ins.Class {
-	case "ari":
-		switch ins {
-		case op.Add:
-			result = vars[1] + vars[2]
-		case op.Sub:
-			result = vars[1] - vars[2]
-		case op.Mul:
-			result = vars[1] * vars[2]
-		case op.Div:
-			result = vars[1] / vars[2]
-		}
-		desReg = vars[0]
-		reg = true
-
-	case "log":
-		switch ins {
-		case op.And:
-			result = vars[1] & vars[2]
-		case op.Or:
-			result = vars[1] | vars[2]
-		case op.Xor:
-			result = vars[1] ^ vars[2]
-		case op.Cmp:
-			if vars[1] < vars[2] {
-				result = -1
-			} else if vars[1] == vars[2] {
-				result = 0
-			} else {
-				result = 1
-			}
-		}
-		desReg = vars[0]
-		reg = true
-
-	case "dat":
-		switch ins {
-		case op.Ld:
-			result = vars[1]
-			desReg = vars[0]
-			reg = true
-		case op.Mv:
-			result = vars[1]
-			desReg = vars[0]
-			reg = true
-		case op.Wrt:
-			result = vars[1]
-			memLoc = vars[0]
-			wrt = true
-		}
-
+	switch opr.Class {
 	case "ctf":
-		switch ins {
-		case op.Jmp:
-			<-regs.pc
-			regs.pc <- uint(vars[0]) * 4
-		case op.Beq:
-			if vars[0] == vars[1] {
-				<-regs.pc
-				regs.pc <- uint(vars[2]) * 4
-			} else {
-				increment(regs.pc)
-			}
-		case op.Bz:
-			if vars[0] == 0 {
-				<-regs.pc
-				regs.pc <- uint(vars[1]) * 4
-			} else {
-				increment(regs.pc)
-			}
+		switch opr {
+		case op.Nop:
+
 		case op.Hlt:
 			flg.halt <- true
-			return
+
+		case op.Jmp:
+			n := <-regs.pc
+			regs.pc <- uint(int(n) + opds[0])
+
+		case op.Beq:
+			if opds[0] == opds[2] {
+				n := <-regs.pc
+				regs.pc <- uint(int(n) + opds[1])
+			} else {
+				increment(regs.pc)
+			}
+
+		case op.Bz:
+			if opds[0] == 0 {
+				n := <-regs.pc
+				regs.pc <- uint(int(n) + opds[1])
+			} else {
+				increment(regs.pc)
+			}
+		}
+
+	case "ari":
+		wb = true
+		desReg = opds[0]
+
+		switch opr {
+		case op.Add:
+			result = opds[1] + opds[2]
+
+		case op.Sub:
+			result = opds[1] - opds[2]
+
+		case op.Mul:
+			result = opds[1] * opds[2]
+
+		case op.Div:
+			result = opds[1] / opds[2]
+		}
+
+	case "log":
+		wb = true
+		desReg = opds[0]
+
+		switch opr {
+		case op.And:
+			result = opds[1] & opds[2]
+
+		case op.Or:
+			result = opds[1] | opds[2]
+
+		case op.Xor:
+			result = opds[1] ^ opds[2]
+
+		case op.Not:
+			result = ^opds[1]
+
+		case op.Cmp:
+			if opds[1] > opds[2] {
+				result = 1
+			} else if opds[1] == opds[2] {
+				result = 0
+			} else {
+				result = -1
+			}
+		}
+
+	case "dat":
+		switch opr {
+		case op.Ld:
+			wb = true
+			desReg = opds[0] + opds[1]
+
+			result = opds[2]
+
+		case op.Wrt:
+			wmem = true
+			memLoc = opds[2] + opds[1]
+
+			result = opds[0]
+
+		case op.Mv:
+			wb = true
+			desReg = opds[0]
+
+			result = opds[1]
 		}
 	}
 
-	if reg {
+	if wb {
 		WriteBack(regs, flg, mem, prog, desReg, result)
-	} else if wrt {
+	} else if wmem {
 		WriteToMemory(regs, flg, mem, prog, memLoc, result)
-	} else if ins != op.Hlt {
-		Fetch(regs, flg, mem, prog)
+	} else if opr != op.Hlt {
+		//flg.exChk <- true
+		flg.halt <- true
 	}
 }
 
-func WriteBack(regs Registers, flg Flags, mem Memory, prog Prog, des, val int) {
+func WriteBack(regs Registers, flg Flags, mem Memory, prog Memory, des, val int) {
 	<-regs.reg[des]
 	regs.reg[des] <- val
 
-	Fetch(regs, flg, mem, prog)
+	//flg.exChk <- true
 }
 
 // Write register to memory
-func WriteToMemory(regs Registers, flg Flags, mem Memory, prog Prog, loc, val int) {
+func WriteToMemory(regs Registers, flg Flags, mem Memory, prog Memory, loc, val int) {
 	lines := strings.Split(string(<-mem), "\n")
 
 	if int(loc) >= len(lines) {
@@ -141,5 +182,5 @@ func WriteToMemory(regs Registers, flg Flags, mem Memory, prog Prog, loc, val in
 
 	mem <- tmp
 
-	Fetch(regs, flg, mem, prog)
+	//flg.exChk <- true
 }
