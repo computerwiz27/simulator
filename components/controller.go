@@ -76,7 +76,12 @@ func cycleCheck(flg Flags) {
 }
 
 // Finishing processes after execution is done
-func finish(registers Registers, memory Memory, memOut string) {
+func finish(cycles uint, registers Registers, memory Memory, memOut string) {
+
+	fmt.Println("Done!")
+
+	fmt.Printf("Operation took %d cycles \n", cycles)
+
 	//Print the values in the registers
 	for i := 0; i < 32; i++ {
 		select {
@@ -109,29 +114,25 @@ func Run(memFile []byte, memOut string, progFile []byte) {
 	registers, flags, memory, program := memInit(memFile, progFile)
 	fet_dec, dec_ex, _, _ := bufInit()
 
-	cycles := 0
+	cycles := make(chan uint, 1)
+	cycles <- 0
 
 cycle:
 	for {
-		Fetch(registers, flags, memory, program, fet_dec)
+		Fetch(cycles, registers, flags, memory, program, fet_dec)
 		//<-flags.fetChck
-		cycles++
 
-		Decode(registers, flags, memory, program, fet_dec, dec_ex)
+		Decode(cycles, registers, flags, memory, program, fet_dec, dec_ex)
 		//<-flags.decChk
-		cycles++
 
-		Execute(registers, flags, memory, program, dec_ex)
+		Execute(cycles, registers, flags, memory, program, dec_ex)
 		//<-flags.exChk
-		cycles++
 
 		// WriteBack(registers, flags, memory, program)
 		// <-flags.wbChk
 
 		// WriteToMemory(registers, flags, memory, program)
 		// <-flags.wmChk
-
-		//cycles++
 
 		select {
 		case <-flags.halt:
@@ -142,7 +143,5 @@ cycle:
 
 	}
 
-	finish(registers, memory, memOut)
-
-	fmt.Println("Done!")
+	finish(<-cycles, registers, memory, memOut)
 }

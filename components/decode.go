@@ -45,8 +45,9 @@ func decodeSigned(val uint32, start int, end int) int {
 }
 
 // Decode the instruction
-func Decode(regs Registers, flg Flags, mem Memory, prog Memory,
+func Decode(cycles chan uint, regs Registers, flg Flags, mem Memory, prog Memory,
 	fet_dec Buffer, dec_ex Buffer) {
+	cycle := <-cycles
 
 	var fet_data []byte
 	select {
@@ -183,6 +184,8 @@ func Decode(regs Registers, flg Flags, mem Memory, prog Memory,
 	}
 
 	dec_ex <- ex_data
+
+	cycles <- cycle + 1
 
 	//flg.decChk <- true
 }

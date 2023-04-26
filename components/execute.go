@@ -15,8 +15,9 @@ func increment(pc chan uint) {
 }
 
 // Execute given instruction
-func Execute(regs Registers, flg Flags, mem Memory, prog Memory,
+func Execute(cycles chan uint, regs Registers, flg Flags, mem Memory, prog Memory,
 	dec_ex Buffer /*, ex_wb Buffer, ex_wm Buffer*/) {
+	cycle := <-cycles
 
 	var dec_data []byte
 	select {
@@ -50,6 +51,8 @@ func Execute(regs Registers, flg Flags, mem Memory, prog Memory,
 
 	switch opr.Class {
 	case "ctf":
+		cycle++
+
 		switch opr {
 		case op.Nop:
 
@@ -84,20 +87,26 @@ func Execute(regs Registers, flg Flags, mem Memory, prog Memory,
 		switch opr {
 		case op.Add:
 			result = opds[1] + opds[2]
+			cycle++
 
 		case op.Sub:
 			result = opds[1] - opds[2]
+			cycle++
 
 		case op.Mul:
 			result = opds[1] * opds[2]
+			cycle += 3
 
 		case op.Div:
 			result = opds[1] / opds[2]
+
+			cycle += 16
 		}
 
 	case "log":
 		wb = true
 		desReg = opds[0]
+		cycle++
 
 		switch opr {
 		case op.And:
@@ -123,6 +132,8 @@ func Execute(regs Registers, flg Flags, mem Memory, prog Memory,
 		}
 
 	case "dat":
+		cycle++
+
 		switch opr {
 		case op.Ld:
 			wb = true
@@ -143,6 +154,8 @@ func Execute(regs Registers, flg Flags, mem Memory, prog Memory,
 			result = opds[1]
 		}
 	}
+
+	cycles <- cycle
 
 	if wb {
 		WriteBack(regs, flg, mem, prog, desReg, result)
