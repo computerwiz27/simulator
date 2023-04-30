@@ -8,42 +8,79 @@ import (
 	"github.com/computerwiz27/simulator/op"
 )
 
-// Increment the program counter channel
-func increment(pc chan uint) {
-	n := <-pc
-	pc <- (n + 4)
+type ExChans struct {
+	bTaken      chan bool
+	dec_dis     chan bool
+	dec_stall   chan bool
+	stall       chan bool
+	dec_mRegsOk chan bool
+	mRegsOk     chan bool
+	wbMRegs     chan bool
+}
+
+type ExCache struct {
+	stallCycles chan int
+	stallData   chan []byte
+}
+
+func readFromMemory(loc int, mem Memory) (int, int) {
+	lMem := <-mem
+	mem <- lMem
+
+	lines := strings.Split(string(lMem), "\n")
+
+	if loc >= len(lines) {
+		return 0, 10
+	}
+	if lines[loc] == "" {
+		return 0, 10
+	}
+
+	val, err := strconv.Atoi(lines[loc])
+	if err != nil {
+		return 0, 10
+	}
+
+	return val, 10
 }
 
 // Execute given instruction
-func Execute(cycles chan uint, regs Registers, flg Flags, mem Memory, prog Memory,
-	dec_ex Buffer /*, ex_wb Buffer, ex_wm Buffer*/) {
-	cycle := <-cycles
+func Execute(flg Flags, mem Memory, buf Buffer, bus ExChans,
+	cache ExCache, modRegCa ModRegCache) {
 
-	var dec_data []byte
-	select {
-	case dec_data = <-dec_ex:
+	decData := <-buf.in
+	stallCycles := <-cache.stallCycles
+	stallData := <-cache.stallData
 
-	default:
-		for i := 0; i < 13; i++ {
-			dec_data[i] = 0
-		}
-	}
-
-	opc := uint(dec_data[0])
+	opc := uint(decData[0])
 	opr := op.MatchOpc(opc)
 
 	var opds []int
 	for i := 1; i < 13; i += 4 {
-		uopds := binary.BigEndian.Uint32(dec_data[i : i+4])
+		uopds := binary.BigEndian.Uint32(decData[i : i+4])
 		opds = append(opds, int(uopds))
 	}
 
+	stall := false
+	if stallCycles > 0 {
+		stall = true
+		opr = op.Nop
+	} else {
+		stall = opr == op.Mul || opr == op.Div || opr == op.Ld
+	}
+	bus.dec_stall <- stall
+
 	if opr.Class != "ctf" {
-		increment(regs.pc)
+		bus.bTaken <- true
+		bus.dec_dis <- false
 	}
 
-	wb := false
-	wmem := false
+	if opr != op.Hlt {
+		bus.wbMRegs <- false
+	}
+
+	var wmem byte
+	var wb byte
 
 	var result int
 	var desReg int
@@ -51,62 +88,63 @@ func Execute(cycles chan uint, regs Registers, flg Flags, mem Memory, prog Memor
 
 	switch opr.Class {
 	case "ctf":
-		cycle++
-
 		switch opr {
 		case op.Nop:
+			bus.bTaken <- true
+			bus.dec_dis <- false
 
 		case op.Hlt:
+			bus.bTaken <- true
+			bus.dec_dis <- false
+			bus.wbMRegs <- true
 			flg.halt <- true
 
 		case op.Jmp:
-			n := <-regs.pc
-			regs.pc <- uint(int(n) + opds[0])
+			bus.bTaken <- true
+			bus.dec_dis <- false
 
 		case op.Beq:
-			if opds[0] == opds[2] {
-				n := <-regs.pc
-				regs.pc <- uint(int(n) + opds[1])
-			} else {
-				increment(regs.pc)
-			}
+			branch := opds[0] == opds[1]
+			bus.bTaken <- branch
+			bus.dec_dis <- !(branch)
 
 		case op.Bz:
-			if opds[0] == 0 {
-				n := <-regs.pc
-				regs.pc <- uint(int(n) + opds[1])
-			} else {
-				increment(regs.pc)
-			}
+			branch := opds[0] == 0
+			bus.bTaken <- branch
+			bus.dec_dis <- !branch
 		}
 
 	case "ari":
-		wb = true
+		wb = 1
 		desReg = opds[0]
 
 		switch opr {
 		case op.Add:
 			result = opds[1] + opds[2]
-			cycle++
 
 		case op.Sub:
 			result = opds[1] - opds[2]
-			cycle++
 
+		//3 cycles
 		case op.Mul:
+			stallCycles = 3
+
 			result = opds[1] * opds[2]
-			cycle += 3
 
+		//16 cycles
 		case op.Div:
-			result = opds[1] / opds[2]
+			stallCycles = 16
 
-			cycle += 16
+			if opds[2] == 0 {
+				result = 0
+			} else {
+				result = opds[1] / opds[2]
+			}
 		}
 
 	case "log":
-		wb = true
+		wb = 1
 		desReg = opds[0]
-		cycle++
 
 		switch opr {
 		case op.And:
@@ -132,68 +170,76 @@ func Execute(cycles chan uint, regs Registers, flg Flags, mem Memory, prog Memor
 		}
 
 	case "dat":
-		cycle++
-
 		switch opr {
 		case op.Ld:
-			wb = true
-			desReg = opds[0] + opds[1]
+			wb = 1
+			desReg = opds[0]
+			memLoc = opds[1] + opds[2]
 
-			result = opds[2]
+			result, stallCycles = readFromMemory(memLoc, mem)
 
 		case op.Wrt:
-			wmem = true
+			wmem = 1
 			memLoc = opds[2] + opds[1]
 
 			result = opds[0]
 
 		case op.Mv:
-			wb = true
+			wb = 1
 			desReg = opds[0]
 
 			result = opds[1]
 		}
 	}
 
-	cycles <- cycle
+	<-bus.mRegsOk
+	modRegs := <-modRegCa
 
-	if wb {
-		WriteBack(regs, flg, mem, prog, desReg, result)
-	} else if wmem {
-		WriteToMemory(regs, flg, mem, prog, memLoc, result)
-	} else if opr != op.Hlt {
-		//flg.exChk <- true
-		flg.halt <- true
-	}
-}
-
-func WriteBack(regs Registers, flg Flags, mem Memory, prog Memory, des, val int) {
-	<-regs.reg[des]
-	regs.reg[des] <- val
-
-	//flg.exChk <- true
-}
-
-// Write register to memory
-func WriteToMemory(regs Registers, flg Flags, mem Memory, prog Memory, loc, val int) {
-	lines := strings.Split(string(<-mem), "\n")
-
-	if int(loc) >= len(lines) {
-		for i := len(lines); i <= int(loc); i++ {
-			lines = append(lines, "")
+	if wb == 1 {
+		mod := false
+		for i := 0; i < len(modRegs); i++ {
+			if modRegs[i].reg == desReg {
+				modRegs[i].val = result
+				mod = true
+				break
+			}
+		}
+		if !mod {
+			modRegs = append(modRegs, struct {
+				reg int
+				val int
+			}{desReg, result})
 		}
 	}
 
-	lines[loc] = strconv.Itoa(int(val)) + "\n"
+	modRegCa <- modRegs
+	bus.dec_mRegsOk <- true
 
-	//make a temporary variable and append the new memory bytes
-	var tmp []byte
-	for i := range lines {
-		tmp = append(tmp, []byte(lines[i])...)
-		tmp = append(tmp, []byte("\n")...) //add a new line after every line
+	var memData []byte
+
+	memData = append(memData, wmem)
+	memData = binary.BigEndian.AppendUint32(memData, uint32(memLoc))
+
+	memData = append(memData, wb)
+	memData = binary.BigEndian.AppendUint32(memData, uint32(desReg))
+
+	memData = binary.BigEndian.AppendUint32(memData, uint32(result))
+
+	if opr == op.Mul || opr == op.Div {
+		stallData = memData
+		memData = make([]byte, 14)
 	}
 
-	mem <- tmp
+	if stall {
+		stallCycles--
+		if stallCycles == 0 {
+			memData = stallData
+		}
+	}
 
-	//flg.exChk <- true
+	cache.stallCycles <- stallCycles
+	cache.stallData <- stallData
+	buf.out <- memData
+
+	flg.exChk <- true
 }

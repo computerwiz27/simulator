@@ -11,9 +11,22 @@ type Flags struct {
 	decChk  chan bool
 	exChk   chan bool
 	wbChk   chan bool
-	wmChk   chan bool
+	memChk  chan bool
 }
 
-type Buffer chan []byte
+type Buffer struct {
+	in  chan []byte
+	out chan []byte
+}
+
+type ModRegCache chan []struct {
+	reg int
+	val int
+}
+
+type L1Cache chan []struct {
+	memLoc int
+	val    int
+}
 
 type Memory chan []byte

@@ -6,6 +6,19 @@ import (
 	"github.com/computerwiz27/simulator/op"
 )
 
+type DecChans struct {
+	nIns   chan int
+	bran   chan int
+	dis    chan bool
+	stall  chan bool
+	mRegOk chan bool
+}
+
+type DecCache struct {
+	lcystall  chan bool
+	stallData chan []byte
+}
+
 func imdCheck(ins uint32) bool {
 	ins = ins << 5
 	ins = ins >> 31
@@ -44,22 +57,47 @@ func decodeSigned(val uint32, start int, end int) int {
 	return int(uval) * sign
 }
 
-// Decode the instruction
-func Decode(cycles chan uint, regs Registers, flg Flags, mem Memory, prog Memory,
-	fet_dec Buffer, dec_ex Buffer) {
-	cycle := <-cycles
+func modifiedReg(reg int, mRes []struct {
+	reg int
+	val int
+}) (bool, int) {
 
-	var fet_data []byte
-	select {
-	case fet_data = <-fet_dec:
-
-	default:
-		for i := 0; i < 4; i++ {
-			fet_data = append(fet_data, 0)
+	for i := 0; i < len(mRes); i++ {
+		if mRes[i].reg == reg {
+			return true, mRes[i].val
 		}
 	}
+	return false, 0
+}
 
-	ins := binary.BigEndian.Uint32(fet_data)
+func getRegVal(targetReg int, regs Registers, mRegs []struct {
+	reg int
+	val int
+}) int {
+
+	mod, mVal := modifiedReg(targetReg, mRegs)
+
+	var ret int
+
+	if mod {
+		ret = mVal
+	} else {
+		ret = <-regs.reg[targetReg]
+		regs.reg[targetReg] <- ret
+	}
+
+	return ret
+}
+
+// Decode the instruction
+func Decode(regs Registers, flg Flags, mem Memory,
+	buf Buffer, bus DecChans, cache DecCache, modRegCa ModRegCache) {
+
+	fetData := <-buf.in
+	lastCycleStall := <-cache.lcystall
+	stallData := <-cache.stallData
+
+	ins := binary.BigEndian.Uint32(fetData)
 
 	opc := ((0b11111 << 27) & ins) >> 27
 	opr := op.MatchOpc(uint(opc))
@@ -79,35 +117,78 @@ func Decode(cycles chan uint, regs Registers, flg Flags, mem Memory, prog Memory
 		opds = append(opds, 0)
 	}
 
+	stall := <-bus.stall
+	discard := <-bus.dis
+
+	if discard {
+		opr = op.Nop
+	}
+
+	if opr.Class != "ctf" {
+		if stall {
+			bus.nIns <- 0
+		} else {
+			bus.nIns <- 1
+		}
+		bus.bran <- 0
+	}
+
+	<-bus.mRegOk
+	modRegs := <-modRegCa
+	modRegCa <- modRegs
+
 	switch opr.Class {
 	case "ctf":
 		switch opr {
 		case op.Nop, op.Hlt:
+			if stall {
+				bus.nIns <- 0
+			} else {
+				bus.nIns <- 1
+			}
+			bus.bran <- 0
 
 		case op.Jmp:
 			opds[0] = decodeSigned(ins, 5, 31)
+			if stall {
+				bus.nIns <- 0
+			} else {
+				bus.nIns <- opds[0] - 1
+			}
+			bus.bran <- 1
 
 		case op.Beq:
 			ra := decodeUnsigned(ins, 6, 10)
-			opds[0] = <-regs.reg[ra]
-			regs.reg[ra] <- opds[0]
-
-			opds[1] = decodeSigned(ins, 11, 19)
+			opds[0] = getRegVal(ra, regs, modRegs)
 
 			if imd {
-				opds[2] = decodeUnsigned(ins, 20, 31)
+				opds[1] = decodeUnsigned(ins, 20, 31)
 			} else {
 				rb := decodeUnsigned(ins, 20, 24)
-				opds[2] = <-regs.reg[rb]
-				regs.reg[rb] <- opds[2]
+				opds[1] = getRegVal(rb, regs, modRegs)
 			}
+
+			opds[2] = decodeSigned(ins, 11, 19)
+			if stall {
+				bus.nIns <- 0
+			} else {
+				bus.nIns <- opds[2] - 1
+			}
+
+			bus.bran <- 2
 
 		case op.Bz:
 			ra := decodeUnsigned(ins, 5, 9)
-			opds[0] = <-regs.reg[ra]
-			regs.reg[ra] <- opds[0]
+			opds[0] = getRegVal(ra, regs, modRegs)
 
 			opds[1] = decodeSigned(ins, 10, 31)
+			if stall {
+				bus.nIns <- 0
+			} else {
+				bus.nIns <- opds[1] - 1
+			}
+
+			bus.bran <- 2
 		}
 
 	case "ari", "log":
@@ -118,22 +199,19 @@ func Decode(cycles chan uint, regs Registers, flg Flags, mem Memory, prog Memory
 				opds[1] = decodeUnsigned(ins, 16, 31)
 			} else {
 				rs := decodeUnsigned(ins, 11, 15)
-				opds[1] = <-regs.reg[rs]
-				regs.reg[rs] <- opds[1]
+				opds[1] = getRegVal(rs, regs, modRegs)
 			}
 		} else {
 			opds[0] = decodeUnsigned(ins, 6, 10)
 
 			rsa := decodeUnsigned(ins, 11, 15)
-			opds[1] = <-regs.reg[rsa]
-			regs.reg[rsa] <- opds[1]
+			opds[1] = getRegVal(rsa, regs, modRegs)
 
 			if imd {
-				opds[2] = decodeUnsigned(ins, 16, 31)
+				opds[2] = decodeSigned(ins, 16, 31)
 			} else {
 				rsb := decodeUnsigned(ins, 16, 20)
-				opds[2] = <-regs.reg[rsb]
-				regs.reg[rsb] <- opds[2]
+				opds[2] = getRegVal(rsb, regs, modRegs)
 			}
 		}
 
@@ -144,48 +222,70 @@ func Decode(cycles chan uint, regs Registers, flg Flags, mem Memory, prog Memory
 
 			if offSet {
 				rsb := decodeUnsigned(ins, 12, 16)
-				opds[1] = <-regs.reg[rsb]
-				regs.reg[rsb] <- opds[1]
+				opds[1] = getRegVal(rsb, regs, modRegs)
 			}
 
 			if imd {
 				opds[2] = decodeUnsigned(ins, 17, 31)
 			} else {
 				rsa := decodeUnsigned(ins, 17, 21)
-				opds[2] = <-regs.reg[rsa]
-				regs.reg[rsa] <- opds[2]
+				opds[2] = getRegVal(rsa, regs, modRegs)
 			}
 
 		case op.Wrt:
 			rsa := decodeUnsigned(ins, 7, 11)
-			opds[0] = <-regs.reg[rsa]
-			regs.reg[rsa] <- opds[0]
+			opds[0] = getRegVal(rsa, regs, modRegs)
 
 			if offSet {
 				rsb := decodeUnsigned(ins, 12, 16)
-				opds[1] = <-regs.reg[rsb]
-				regs.reg[rsb] <- opds[1]
+				opds[1] = getRegVal(rsb, regs, modRegs)
 			}
 
 			if imd {
 				opds[2] = decodeUnsigned(ins, 17, 21)
 			} else {
 				rd := decodeUnsigned(ins, 17, 31)
-				opds[2] = <-regs.reg[rd]
-				regs.reg[rd] <- opds[2]
+				opds[2] = getRegVal(rd, regs, modRegs)
+			}
+
+		case op.Mv:
+			opds[0] = decodeUnsigned(ins, 6, 10)
+
+			if imd {
+				opds[1] = decodeSigned(ins, 11, 31)
+			} else {
+				rs := decodeUnsigned(ins, 11, 15)
+				opds[1] = getRegVal(rs, regs, modRegs)
 			}
 		}
 	}
 
-	var ex_data []byte
-	ex_data = append(ex_data, byte(opc))
+	var exData []byte
+	exData = append(exData, byte(opc))
 	for i := 0; i < 3; i++ {
-		ex_data = binary.BigEndian.AppendUint32(ex_data, uint32(opds[i]))
+		exData = binary.BigEndian.AppendUint32(exData, uint32(opds[i]))
 	}
 
-	dec_ex <- ex_data
+	if discard {
+		exData = make([]byte, 14)
+	}
 
-	cycles <- cycle + 1
+	if stall {
+		if !lastCycleStall {
+			stallData = exData
+		}
+		exData = stallData
+		lastCycleStall = true
+	}
 
-	//flg.decChk <- true
+	if !stall && lastCycleStall {
+		exData = stallData
+		lastCycleStall = false
+	}
+
+	cache.lcystall <- lastCycleStall
+	cache.stallData <- stallData
+	buf.out <- exData
+
+	flg.decChk <- true
 }

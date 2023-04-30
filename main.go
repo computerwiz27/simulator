@@ -22,6 +22,8 @@ func main() {
 
 	// assemble := flag.Bool("asb", false, "Assemble from assembly to machine code")
 
+	step := flag.Bool("step", false, "Step mode: step through each cycle")
+
 	flag.Parse()
 
 	mem, err := os.ReadFile(*memFile)
@@ -30,5 +32,5 @@ func main() {
 	prog, err := os.ReadFile(*progFile)
 	check(err)
 
-	components.Run(mem, *memOut, prog)
+	components.Run(mem, *memOut, prog, *step)
 }

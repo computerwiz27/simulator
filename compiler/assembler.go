@@ -64,8 +64,14 @@ func imdTokenChk(token string, resBits int, line int) uint32 {
 	if imd {
 		ret = ret | (1 << 26) //set imd flag
 
-		mask := int(math.Pow(2, (float64(resBits)+5))) - 1
-		val = val & mask
+		mask := int(math.Pow(2, (float64(resBits)+4))) - 1
+
+		if val < 0 {
+			uval := -val & mask
+			val = uval + (1 << (resBits + 4))
+		} else {
+			val = val & mask
+		}
 
 		ret = ret | uint32(val)
 	} else {

@@ -1,12 +1,16 @@
-MVI reg0 0
-MVI reg1 0
-MVI reg2 1
-MVI reg10 10
-BEQ reg10 reg0 11
-WRT reg0 reg1
-ADDI reg0 reg0 1
-ADD reg3 reg1 reg2
-MV reg1 reg2
-MV reg2 reg3
-JMP 4
+;;load first 2 numbers of sequence
+MV r1 0
+MV r2 1
+
+;;register holds iteration
+MV r10 0
+
+BEQ r10 4 7
+WRT 0 r1 r10
+ADD r3 r1 r2
+MV r1 r2
+MV r2 r3
+ADD r10 r10 1
+JMP -6
+
 HLT
