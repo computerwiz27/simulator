@@ -152,12 +152,30 @@ func busInit() (FetChans, DecChans, ExChans, MemChans, WbChans) {
 	return fetCh, decCh, exCh, memCh, wbCh
 }
 
-func cacheInit() (ModRegCache, FetCache, DecCache, ExCache) {
-	modRegCa := make(ModRegCache, 1)
-	modRegCa <- make([]struct {
-		reg int
-		val int
-	}, 0)
+func cacheInit() (Cache, Cache, Cache, Cache, FetCache, DecCache, ExCache) {
+	l1Cache := make(Cache, 1)
+	l1Ca := make([]CaAddr, 16) //0.5 kibibytes
+	for i := range l1Ca {
+		l1Ca[i].loc = -1
+	}
+	l1Cache <- l1Ca
+
+	l2Cache := make(Cache, 1)
+	l2Ca := make([]CaAddr, 128) //4 kibibytes
+	for i := range l2Ca {
+		l2Ca[i].loc = -1
+	}
+	l2Cache <- l2Ca
+
+	l3Cache := make(Cache, 1)
+	l3Ca := make([]CaAddr, 1024) //32 kibibytes
+	for i := range l3Ca {
+		l3Ca[i].loc = -1
+	}
+	l3Cache <- l3Ca
+
+	modRegCa := make(chan []CaAddr, 1)
+	modRegCa <- make([]CaAddr, 0)
 
 	forks := make(chan []uint, 1)
 	forks <- make([]uint, 0)
@@ -186,7 +204,7 @@ func cacheInit() (ModRegCache, FetCache, DecCache, ExCache) {
 		stallData:   ex_stallData,
 	}
 
-	return modRegCa, fetCa, decCa, exCa
+	return l1Cache, l2Cache, l3Cache, modRegCa, fetCa, decCa, exCa
 }
 
 func printRegisters(regs Registers) {
@@ -207,7 +225,7 @@ func printRegisters(regs Registers) {
 }
 
 func step(cycle uint, regs Registers, decBuf Buffer, memBuf Buffer,
-	fetCa FetCache, decCa DecCache, exCa ExCache, mRegCa ModRegCache) bool {
+	fetCa FetCache, decCa DecCache, exCa ExCache, mRegCa Cache) bool {
 
 	fmt.Printf("Cycle: %d\n", cycle)
 
@@ -308,7 +326,7 @@ loop:
 
 			fmt.Println("Modified Registers Cache:")
 			for i := 0; i < len(mRegCaVal); i++ {
-				fmt.Printf("reg: %d, val: %d\n", mRegCaVal[i].reg, mRegCaVal[i].val)
+				fmt.Printf("reg: %d, val: %d\n", mRegCaVal[i].loc, mRegCaVal[i].val)
 			}
 
 			fmt.Println()
@@ -378,10 +396,19 @@ func cycleCheck(flg Flags) {
 // Runs the simulator with the given specifications
 func Run(memFile []byte, memOut string, progFile []byte, stepMode bool) {
 
+	//initialise registers
 	registers, flags, memory, program := memInit(memFile, progFile)
+	//initialise buffers between stages
 	fetBuf, decBuf, exBuf, memBuf, wbBuf := bufInit()
+	//initialise the stages' channels
 	fetChans, decChans, exChans, memChans, wbChans := busInit()
-	modRegCache, fetCache, decCache, exCache := cacheInit()
+	//initialise caches
+	l1Cache, l2Cache, l3Cache, modRegCache, fetCache, decCache, exCache := cacheInit()
+	sysCache := SysCache{
+		l1: l1Cache,
+		l2: l2Cache,
+		l3: l3Cache,
+	}
 
 	if stepMode {
 		fmt.Println("Step mode. Enter")
@@ -406,9 +433,9 @@ cycle:
 
 		go Decode(registers, flags, memory, decBuf, decChans, decCache, modRegCache)
 
-		go Execute(flags, memory, exBuf, exChans, exCache, modRegCache)
+		go Execute(flags, memory, sysCache, exBuf, exChans, exCache, modRegCache)
 
-		go WriteToMemory(flags, memory, memBuf, memChans)
+		go WriteToMemory(flags, memory, sysCache, memBuf, memChans)
 
 		go WriteBack(registers, flags, wbBuf, wbChans, modRegCache)
 

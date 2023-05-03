@@ -7,22 +7,20 @@ type WbChans struct {
 	ex_mRegsOk chan bool
 }
 
-func removeModReg(tReg int, modRegCa ModRegCache) {
+func removeModReg(tReg int, modRegCa Cache) {
 	modRegs := <-modRegCa
 
 	for i := 0; i < len(modRegs); i++ {
-		if modRegs[i].reg == int(tReg) {
+		if modRegs[i].loc == int(tReg) {
 			modRegs[i] = modRegs[len(modRegs)-1]
 			modRegs = modRegs[:len(modRegs)-1]
-			break
 		}
 	}
-
 	modRegCa <- modRegs
 }
 
 func WriteBack(regs Registers, flg Flags, buf Buffer, bus WbChans,
-	modRegCa ModRegCache) {
+	modRegCa Cache) {
 
 	memData := <-buf.in
 
@@ -42,10 +40,10 @@ func WriteBack(regs Registers, flg Flags, buf Buffer, bus WbChans,
 		modRegCa <- modReg
 
 		for i := 0; i < len(modReg); i++ {
-			removeModReg(modReg[i].reg, modRegCa)
+			removeModReg(modReg[i].loc, modRegCa)
 
-			<-regs.reg[modReg[i].reg]
-			regs.reg[modReg[i].reg] <- modReg[i].val
+			<-regs.reg[modReg[i].loc]
+			regs.reg[modReg[i].loc] <- modReg[i].val
 		}
 
 		if write {

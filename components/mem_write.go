@@ -10,7 +10,9 @@ type MemChans struct {
 	ex_stall chan bool
 }
 
-func WriteToMemory(flg Flags, mem Memory, buf Buffer, bus MemChans) {
+func WriteToMemory(flg Flags, mem Memory, sysCa SysCache,
+	buf Buffer, bus MemChans) {
+
 	exData := <-buf.in
 
 	store := false

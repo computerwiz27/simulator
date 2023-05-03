@@ -5,7 +5,7 @@ MV r2 1
 ;;register holds iteration
 MV r10 0
 
-BEQ r10 4 7
+BEQ r10 200 7
 WRT 0 r1 r10
 ADD r3 r1 r2
 MV r1 r2

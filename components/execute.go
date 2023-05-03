@@ -23,30 +23,92 @@ type ExCache struct {
 	stallData   chan []byte
 }
 
-func readFromMemory(loc int, mem Memory) (int, int) {
-	lMem := <-mem
-	mem <- lMem
+func mvEle2Front(array []CaAddr, pos int) []CaAddr {
+	ele := array[pos]
+	array = append(array[:pos], array[pos+1:]...)
+	array = append([]CaAddr{ele}, array...)
 
-	lines := strings.Split(string(lMem), "\n")
+	return array
+}
 
-	if loc >= len(lines) {
-		return 0, 10
+func replaceEle(array []CaAddr, ele CaAddr) []CaAddr {
+	array = append([]CaAddr{ele}, array[:len(array)-1]...)
+	return array
+}
+
+func readFromMemory(loc int, mem Memory, sysCa SysCache) (int, int) {
+	l1Cache := <-sysCa.l1
+
+	for i := 0; i < len(l1Cache); i++ {
+		if l1Cache[i].loc == loc {
+			l1Cache = mvEle2Front(l1Cache, i)
+
+			sysCa.l1 <- l1Cache
+
+			return l1Cache[0].val, 1 //3
+		}
 	}
-	if lines[loc] == "" {
-		return 0, 10
+
+	l2Cache := <-sysCa.l2
+
+	for i := 0; i < len(l2Cache); i++ {
+		if l2Cache[i].loc == loc {
+			l2Cache = mvEle2Front(l2Cache, i)
+			l1Cache = replaceEle(l1Cache, l2Cache[i])
+
+			sysCa.l1 <- l1Cache
+			sysCa.l2 <- l2Cache
+
+			return l2Cache[0].val, 1 // 10
+		}
 	}
+
+	l3Cache := <-sysCa.l3
+
+	for i := 0; i < len(l3Cache); i++ {
+		if l3Cache[i].loc == loc {
+			l3Cache = mvEle2Front(l3Cache, i)
+
+			l1Cache = replaceEle(l1Cache, l3Cache[i])
+			l2Cache = replaceEle(l2Cache, l3Cache[i])
+
+			sysCa.l1 <- l1Cache
+			sysCa.l2 <- l2Cache
+			sysCa.l3 <- l3Cache
+
+			return l3Cache[0].val, 1 //40
+		}
+
+	}
+
+	memBytes := <-mem
+
+	lines := strings.Split(string(memBytes), "\n")
 
 	val, err := strconv.Atoi(lines[loc])
-	if err != nil {
-		return 0, 10
+
+	if loc >= len(lines) || lines[loc] == "" || err != nil {
+		l1Cache = replaceEle(l1Cache, CaAddr{loc: loc, val: 0})
+		l2Cache = replaceEle(l2Cache, CaAddr{loc: loc, val: 0})
+		l3Cache = replaceEle(l3Cache, CaAddr{loc: loc, val: 0})
+		val = 0
 	}
 
-	return val, 10
+	l1Cache = replaceEle(l1Cache, CaAddr{loc: loc, val: val})
+	l2Cache = replaceEle(l2Cache, CaAddr{loc: loc, val: val})
+	l3Cache = replaceEle(l3Cache, CaAddr{loc: loc, val: val})
+
+	sysCa.l1 <- l1Cache
+	sysCa.l2 <- l2Cache
+	sysCa.l3 <- l3Cache
+	mem <- memBytes
+
+	return val, 1 //100
 }
 
 // Execute given instruction
-func Execute(flg Flags, mem Memory, buf Buffer, bus ExChans,
-	cache ExCache, modRegCa ModRegCache) {
+func Execute(flg Flags, mem Memory, sysCa SysCache, buf Buffer, bus ExChans,
+	cache ExCache, modRegCa Cache) {
 
 	decData := <-buf.in
 	stallCycles := <-cache.stallCycles
@@ -176,7 +238,7 @@ func Execute(flg Flags, mem Memory, buf Buffer, bus ExChans,
 			desReg = opds[0]
 			memLoc = opds[1] + opds[2]
 
-			result, stallCycles = readFromMemory(memLoc, mem)
+			result, stallCycles = readFromMemory(memLoc, mem, sysCa)
 
 		case op.Wrt:
 			wmem = 1
@@ -198,7 +260,7 @@ func Execute(flg Flags, mem Memory, buf Buffer, bus ExChans,
 	if wb == 1 {
 		mod := false
 		for i := 0; i < len(modRegs); i++ {
-			if modRegs[i].reg == desReg {
+			if modRegs[i].loc == desReg {
 				modRegs[i].val = result
 				mod = true
 				break
@@ -206,7 +268,7 @@ func Execute(flg Flags, mem Memory, buf Buffer, bus ExChans,
 		}
 		if !mod {
 			modRegs = append(modRegs, struct {
-				reg int
+				loc int
 				val int
 			}{desReg, result})
 		}

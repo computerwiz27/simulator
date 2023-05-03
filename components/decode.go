@@ -57,23 +57,17 @@ func decodeSigned(val uint32, start int, end int) int {
 	return int(uval) * sign
 }
 
-func modifiedReg(reg int, mRes []struct {
-	reg int
-	val int
-}) (bool, int) {
+func modifiedReg(reg int, mRes []CaAddr) (bool, int) {
 
 	for i := 0; i < len(mRes); i++ {
-		if mRes[i].reg == reg {
+		if mRes[i].loc == reg {
 			return true, mRes[i].val
 		}
 	}
 	return false, 0
 }
 
-func getRegVal(targetReg int, regs Registers, mRegs []struct {
-	reg int
-	val int
-}) int {
+func getRegVal(targetReg int, regs Registers, mRegs []CaAddr) int {
 
 	mod, mVal := modifiedReg(targetReg, mRegs)
 
@@ -91,7 +85,7 @@ func getRegVal(targetReg int, regs Registers, mRegs []struct {
 
 // Decode the instruction
 func Decode(regs Registers, flg Flags, mem Memory,
-	buf Buffer, bus DecChans, cache DecCache, modRegCa ModRegCache) {
+	buf Buffer, bus DecChans, cache DecCache, modRegCa Cache) {
 
 	fetData := <-buf.in
 	lastCycleStall := <-cache.lcystall
@@ -120,7 +114,7 @@ func Decode(regs Registers, flg Flags, mem Memory,
 	stall := <-bus.stall
 	discard := <-bus.dis
 
-	if discard {
+	if discard || stall {
 		opr = op.Nop
 	}
 
@@ -270,18 +264,18 @@ func Decode(regs Registers, flg Flags, mem Memory,
 		exData = make([]byte, 14)
 	}
 
-	if stall {
-		if !lastCycleStall {
-			stallData = exData
-		}
-		exData = stallData
-		lastCycleStall = true
-	}
+	// if stall {
+	// 	if !lastCycleStall {
+	// 		stallData = exData
+	// 	}
+	// 	exData = stallData
+	// 	lastCycleStall = true
+	// }
 
-	if !stall && lastCycleStall {
-		exData = stallData
-		lastCycleStall = false
-	}
+	// if !stall && lastCycleStall {
+	// 	exData = stallData
+	// 	lastCycleStall = false
+	// }
 
 	cache.lcystall <- lastCycleStall
 	cache.stallData <- stallData

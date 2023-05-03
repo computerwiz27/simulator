@@ -19,14 +19,17 @@ type Buffer struct {
 	out chan []byte
 }
 
-type ModRegCache chan []struct {
-	reg int
+type CaAddr struct {
+	loc int
 	val int
 }
 
-type L1Cache chan []struct {
-	memLoc int
-	val    int
+type Cache chan []CaAddr
+
+type SysCache struct {
+	l1 Cache
+	l2 Cache
+	l3 Cache
 }
 
 type Memory chan []byte
