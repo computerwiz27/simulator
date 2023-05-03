@@ -213,13 +213,11 @@ func Execute(flg c.Flags, mem c.Memory, sysCa c.SysCache, buf c.Buffer, bus ExCh
 		case op.Sub:
 			result = opds[1] - opds[2]
 
-		//3 cycles
 		case op.Mul:
 			stallCycles = 3
 
 			result = opds[1] * opds[2]
 
-		//16 cycles
 		case op.Div:
 			stallCycles = 16
 

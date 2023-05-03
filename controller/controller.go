@@ -11,7 +11,7 @@ import (
 	s "github.com/computerwiz27/simulator/stages"
 )
 
-// Initialises the channels for registers, flags and memory
+// Initialises the channels for registers, flags, system memory and program memory
 func memInit(memFile []byte, progFile []byte) (c.Registers, c.Flags, c.Memory, c.Memory) {
 	//Set up registers channel with value 0
 	//Channel have buffer 1 so they can store a value
@@ -62,7 +62,10 @@ func memInit(memFile []byte, progFile []byte) (c.Registers, c.Flags, c.Memory, c
 	return registers, flags, mem, program
 }
 
+// Initialise the channels for the buffers that connect the execution stages
 func bufInit() (c.Buffer, c.Buffer, c.Buffer, c.Buffer, c.Buffer) {
+
+	//Initialise the buffer channels with all zeros
 	fet_dec := make(chan []byte, 1)
 	fet_dec <- make([]byte, 4)
 
@@ -101,7 +104,10 @@ func bufInit() (c.Buffer, c.Buffer, c.Buffer, c.Buffer, c.Buffer) {
 	return fetBuf, decBuf, exBuf, memBuf, wbBuf
 }
 
+// Initialise the channels that act as a bus between the execution stages and the controller
 func busInit() (s.FetChans, s.DecChans, s.ExChans, s.MemChans, s.WbChans) {
+	//these channels don't have a buffer since the stages operate in parallel
+
 	//fetch channels
 	dec_nIns := make(chan int)
 	bran := make(chan int)
@@ -156,23 +162,27 @@ func busInit() (s.FetChans, s.DecChans, s.ExChans, s.MemChans, s.WbChans) {
 	return fetCh, decCh, exCh, memCh, wbCh
 }
 
+// Initialise the system cache and the stage specific caches
 func cacheInit() (c.Cache, c.Cache, c.Cache, c.Cache,
 	s.FetCache, s.DecCache, s.ExCache) {
 
+	//Level 1 cache has 16 addresable spaces, with a size of 0.5 kibibytes
 	l1Cache := make(c.Cache, 1)
-	l1Ca := make([]c.CaAddr, 16) //0.5 kibibytes
+	l1Ca := make([]c.CaAddr, 16)
 	for i := range l1Ca {
 		l1Ca[i].Loc = -1
 	}
 	l1Cache <- l1Ca
 
+	//Level 2 cache has 128 addresable spaces, with a size of 4 kibibytes
 	l2Cache := make(c.Cache, 1)
-	l2Ca := make([]c.CaAddr, 128) //4 kibibytes
+	l2Ca := make([]c.CaAddr, 128)
 	for i := range l2Ca {
 		l2Ca[i].Loc = -1
 	}
 	l2Cache <- l2Ca
 
+	//Level 1 cache has 1024 addresable spaces, with a size of 32 kibibytes
 	l3Cache := make(c.Cache, 1)
 	l3Ca := make([]c.CaAddr, 1024) //32 kibibytes
 	for i := range l3Ca {
@@ -180,9 +190,13 @@ func cacheInit() (c.Cache, c.Cache, c.Cache, c.Cache,
 	}
 	l3Cache <- l3Ca
 
+	//The modified register cache does not have a predefined size
 	modRegCa := make(chan []c.CaAddr, 1)
 	modRegCa <- make([]c.CaAddr, 0)
 
+	//Initialise the component cache with the default values
+
+	//Fetch cache
 	forks := make(chan []uint, 1)
 	forks <- make([]uint, 0)
 	bLast := make(chan bool, 1)
@@ -190,11 +204,12 @@ func cacheInit() (c.Cache, c.Cache, c.Cache, c.Cache,
 	fet_lastStall := make(chan bool, 1)
 	fet_lastStall <- false
 	fetCa := s.FetCache{
-		Forks:    forks,
-		BLast:    bLast,
-		Lcystall: fet_lastStall,
+		Forks:     forks,
+		LCyBranch: bLast,
+		LCyStall:  fet_lastStall,
 	}
 
+	//Decode cache
 	dec_lastCycleStall := make(chan bool, 1)
 	dec_lastCycleStall <- false
 	dec_stallData := make(chan []byte, 1)
@@ -207,6 +222,7 @@ func cacheInit() (c.Cache, c.Cache, c.Cache, c.Cache,
 		LastIns:   dec_lastIns,
 	}
 
+	//Execute cache
 	ex_stallCycles := make(chan int, 1)
 	ex_stallCycles <- 0
 	ex_stallData := make(chan []byte, 1)
@@ -222,16 +238,22 @@ func cacheInit() (c.Cache, c.Cache, c.Cache, c.Cache,
 	return l1Cache, l2Cache, l3Cache, modRegCa, fetCa, decCa, exCa
 }
 
+// Print registers to terminal
 func printRegisters(regs c.Registers) {
 
+	//for each of the 32 registers
 	for i := 0; i < 32; i++ {
 		select {
+		// if the register holds a value, which it should
 		case val, ok := <-regs.Reg[i]:
 			if ok {
-				fmt.Printf("reg%d: %d\n", i, val)
+				fmt.Printf("reg%d: %d\n", i, val) //print it
 			}
+			//return the value to the register
 			regs.Reg[i] <- val
 
+		//this default case is in place for the exeption where the register chan
+		//does not hold a value. This shouldn't happen!
 		default:
 			fmt.Printf("reg%d: no value\n", i)
 		}
@@ -239,6 +261,7 @@ func printRegisters(regs c.Registers) {
 	fmt.Println()
 }
 
+// Handles the step function of the program
 func step(cycle uint, regs c.Registers, decBuf c.Buffer, memBuf c.Buffer,
 	fetCa s.FetCache, decCa s.DecCache, exCa s.ExCache, mRegCa c.Cache) bool {
 
@@ -400,7 +423,9 @@ func finish(cycles uint, registers c.Registers, memory c.Memory, memOut string) 
 	os.WriteFile(memOut, bytes, 0644)
 }
 
+// Check if the execution of the stages is finished
 func cycleCheck(flg c.Flags) {
+	//dump all the done flag channels
 	<-flg.FetChck
 	<-flg.DecChk
 	<-flg.ExChk
@@ -457,6 +482,7 @@ cycle:
 		cycleCheck(flags)
 		cycles++
 
+		//if the halt flag has been raised, break and exit
 		select {
 		case <-flags.Halt:
 			break cycle
