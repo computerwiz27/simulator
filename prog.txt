@@ -1,9 +1,0 @@
-LD r0 3
-NOP
-LD r1 3
-MV r4 0
-BEQ r4 16 4
-MUL r0 r0 r0
-ADD r4 r4 1
-JMP -2
-HLT

@@ -7,16 +7,18 @@ import (
 )
 
 type DecChans struct {
-	nIns   chan int
-	bran   chan int
-	dis    chan bool
-	stall  chan bool
-	mRegOk chan bool
+	nIns      chan int
+	bran      chan int
+	dis       chan bool
+	stall     chan bool
+	fet_stall chan bool
+	mRegOk    chan bool
 }
 
 type DecCache struct {
 	lcystall  chan bool
 	stallData chan []byte
+	lastIns   chan uint32
 }
 
 func imdCheck(ins uint32) bool {
@@ -90,8 +92,18 @@ func Decode(regs Registers, flg Flags, mem Memory,
 	fetData := <-buf.in
 	lastCycleStall := <-cache.lcystall
 	stallData := <-cache.stallData
+	lastIns := <-cache.lastIns
+
+	stall := <-bus.stall
+	discard := <-bus.dis
 
 	ins := binary.BigEndian.Uint32(fetData)
+	if stall && lastCycleStall {
+		ins = lastIns
+	}
+	if stall {
+		lastIns = ins
+	}
 
 	opc := ((0b11111 << 27) & ins) >> 27
 	opr := op.MatchOpc(uint(opc))
@@ -111,19 +123,20 @@ func Decode(regs Registers, flg Flags, mem Memory,
 		opds = append(opds, 0)
 	}
 
-	stall := <-bus.stall
-	discard := <-bus.dis
+	bus.fet_stall <- stall
 
-	if discard || stall {
+	nextIns := 1
+
+	if discard {
 		opr = op.Nop
 	}
 
+	if stall {
+		nextIns = 0
+	}
+
 	if opr.Class != "ctf" {
-		if stall {
-			bus.nIns <- 0
-		} else {
-			bus.nIns <- 1
-		}
+		bus.nIns <- nextIns
 		bus.bran <- 0
 	}
 
@@ -135,19 +148,15 @@ func Decode(regs Registers, flg Flags, mem Memory,
 	case "ctf":
 		switch opr {
 		case op.Nop, op.Hlt:
-			if stall {
-				bus.nIns <- 0
-			} else {
-				bus.nIns <- 1
-			}
+			bus.nIns <- nextIns
 			bus.bran <- 0
 
 		case op.Jmp:
 			opds[0] = decodeSigned(ins, 5, 31)
 			if stall {
-				bus.nIns <- 0
+				bus.nIns <- nextIns
 			} else {
-				bus.nIns <- opds[0] - 1
+				bus.nIns <- opds[0]
 			}
 			bus.bran <- 1
 
@@ -164,9 +173,9 @@ func Decode(regs Registers, flg Flags, mem Memory,
 
 			opds[2] = decodeSigned(ins, 11, 19)
 			if stall {
-				bus.nIns <- 0
+				bus.nIns <- nextIns
 			} else {
-				bus.nIns <- opds[2] - 1
+				bus.nIns <- opds[2]
 			}
 
 			bus.bran <- 2
@@ -179,7 +188,7 @@ func Decode(regs Registers, flg Flags, mem Memory,
 			if stall {
 				bus.nIns <- 0
 			} else {
-				bus.nIns <- opds[1] - 1
+				bus.nIns <- opds[1]
 			}
 
 			bus.bran <- 2
@@ -264,21 +273,16 @@ func Decode(regs Registers, flg Flags, mem Memory,
 		exData = make([]byte, 14)
 	}
 
-	// if stall {
-	// 	if !lastCycleStall {
-	// 		stallData = exData
-	// 	}
-	// 	exData = stallData
-	// 	lastCycleStall = true
-	// }
-
-	// if !stall && lastCycleStall {
-	// 	exData = stallData
-	// 	lastCycleStall = false
-	// }
+	if stall {
+		lastCycleStall = true
+	} else {
+		lastCycleStall = false
+	}
 
 	cache.lcystall <- lastCycleStall
 	cache.stallData <- stallData
+	cache.lastIns <- lastIns
+
 	buf.out <- exData
 
 	flg.decChk <- true

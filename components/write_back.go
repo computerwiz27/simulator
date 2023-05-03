@@ -7,11 +7,11 @@ type WbChans struct {
 	ex_mRegsOk chan bool
 }
 
-func removeModReg(tReg int, modRegCa Cache) {
+func removeModReg(tReg int, val int, modRegCa Cache) {
 	modRegs := <-modRegCa
 
 	for i := 0; i < len(modRegs); i++ {
-		if modRegs[i].loc == int(tReg) {
+		if modRegs[i].loc == int(tReg) && modRegs[i].val == val {
 			modRegs[i] = modRegs[len(modRegs)-1]
 			modRegs = modRegs[:len(modRegs)-1]
 		}
@@ -32,7 +32,7 @@ func WriteBack(regs Registers, flg Flags, buf Buffer, bus WbChans,
 	des := binary.BigEndian.Uint32(memData[1:5])
 
 	uval := binary.BigEndian.Uint32(memData[5:9])
-	val := int(uval)
+	val := int(int32(uval))
 
 	dumpModRegs := <-bus.wbMRegs
 	if dumpModRegs {
@@ -40,8 +40,6 @@ func WriteBack(regs Registers, flg Flags, buf Buffer, bus WbChans,
 		modRegCa <- modReg
 
 		for i := 0; i < len(modReg); i++ {
-			removeModReg(modReg[i].loc, modRegCa)
-
 			<-regs.reg[modReg[i].loc]
 			regs.reg[modReg[i].loc] <- modReg[i].val
 		}
@@ -62,7 +60,7 @@ func WriteBack(regs Registers, flg Flags, buf Buffer, bus WbChans,
 		return
 	}
 
-	removeModReg(int(des), modRegCa)
+	removeModReg(int(des), val, modRegCa)
 
 	<-regs.reg[des]
 	regs.reg[des] <- val

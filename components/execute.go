@@ -12,7 +12,7 @@ type ExChans struct {
 	bTaken      chan bool
 	dec_dis     chan bool
 	dec_stall   chan bool
-	stall       chan bool
+	memOk       chan bool
 	dec_mRegsOk chan bool
 	mRegsOk     chan bool
 	wbMRegs     chan bool
@@ -20,6 +20,7 @@ type ExChans struct {
 
 type ExCache struct {
 	stallCycles chan int
+	stallmRegs  chan []CaAddr
 	stallData   chan []byte
 }
 
@@ -45,7 +46,7 @@ func readFromMemory(loc int, mem Memory, sysCa SysCache) (int, int) {
 
 			sysCa.l1 <- l1Cache
 
-			return l1Cache[0].val, 1 //3
+			return l1Cache[0].val, 3
 		}
 	}
 
@@ -59,7 +60,7 @@ func readFromMemory(loc int, mem Memory, sysCa SysCache) (int, int) {
 			sysCa.l1 <- l1Cache
 			sysCa.l2 <- l2Cache
 
-			return l2Cache[0].val, 1 // 10
+			return l2Cache[0].val, 10
 		}
 	}
 
@@ -76,7 +77,7 @@ func readFromMemory(loc int, mem Memory, sysCa SysCache) (int, int) {
 			sysCa.l2 <- l2Cache
 			sysCa.l3 <- l3Cache
 
-			return l3Cache[0].val, 1 //40
+			return l3Cache[0].val, 40
 		}
 
 	}
@@ -103,7 +104,24 @@ func readFromMemory(loc int, mem Memory, sysCa SysCache) (int, int) {
 	sysCa.l3 <- l3Cache
 	mem <- memBytes
 
-	return val, 1 //100
+	return val, 100
+}
+
+func updateModRegs(wb byte, desReg int, result int, modRegs []CaAddr) []CaAddr {
+	if wb == 1 {
+		mod := false
+		for i := 0; i < len(modRegs); i++ {
+			if modRegs[i].loc == desReg {
+				modRegs[i].val = result
+				mod = true
+				break
+			}
+		}
+		if !mod {
+			modRegs = append(modRegs, CaAddr{desReg, result})
+		}
+	}
+	return modRegs
 }
 
 // Execute given instruction
@@ -111,16 +129,19 @@ func Execute(flg Flags, mem Memory, sysCa SysCache, buf Buffer, bus ExChans,
 	cache ExCache, modRegCa Cache) {
 
 	decData := <-buf.in
+
 	stallCycles := <-cache.stallCycles
 	stallData := <-cache.stallData
+	stallmRegs := <-cache.stallmRegs
 
 	opc := uint(decData[0])
 	opr := op.MatchOpc(opc)
 
 	var opds []int
 	for i := 1; i < 13; i += 4 {
-		uopds := binary.BigEndian.Uint32(decData[i : i+4])
-		opds = append(opds, int(uopds))
+		uopd := binary.BigEndian.Uint32(decData[i : i+4])
+		opd := int32(uopd)
+		opds = append(opds, int(opd))
 	}
 
 	stall := false
@@ -135,6 +156,10 @@ func Execute(flg Flags, mem Memory, sysCa SysCache, buf Buffer, bus ExChans,
 	if opr.Class != "ctf" {
 		bus.bTaken <- true
 		bus.dec_dis <- false
+	}
+
+	if opr != op.Ld {
+		<-bus.memOk
 	}
 
 	if opr != op.Hlt {
@@ -234,6 +259,8 @@ func Execute(flg Flags, mem Memory, sysCa SysCache, buf Buffer, bus ExChans,
 	case "dat":
 		switch opr {
 		case op.Ld:
+			<-bus.memOk
+
 			wb = 1
 			desReg = opds[0]
 			memLoc = opds[1] + opds[2]
@@ -257,21 +284,12 @@ func Execute(flg Flags, mem Memory, sysCa SysCache, buf Buffer, bus ExChans,
 	<-bus.mRegsOk
 	modRegs := <-modRegCa
 
-	if wb == 1 {
-		mod := false
-		for i := 0; i < len(modRegs); i++ {
-			if modRegs[i].loc == desReg {
-				modRegs[i].val = result
-				mod = true
-				break
-			}
-		}
-		if !mod {
-			modRegs = append(modRegs, struct {
-				loc int
-				val int
-			}{desReg, result})
-		}
+	if stall && wb == 1 {
+		stallmRegs = updateModRegs(wb, desReg, result, modRegs)
+	} else if stallCycles == 1 {
+		modRegs = stallmRegs
+	} else {
+		modRegs = updateModRegs(wb, desReg, result, modRegs)
 	}
 
 	modRegCa <- modRegs
@@ -287,7 +305,7 @@ func Execute(flg Flags, mem Memory, sysCa SysCache, buf Buffer, bus ExChans,
 
 	memData = binary.BigEndian.AppendUint32(memData, uint32(result))
 
-	if opr == op.Mul || opr == op.Div {
+	if opr == op.Mul || opr == op.Div || opr == op.Ld {
 		stallData = memData
 		memData = make([]byte, 14)
 	}
@@ -301,6 +319,8 @@ func Execute(flg Flags, mem Memory, sysCa SysCache, buf Buffer, bus ExChans,
 
 	cache.stallCycles <- stallCycles
 	cache.stallData <- stallData
+	cache.stallmRegs <- stallmRegs
+
 	buf.out <- memData
 
 	flg.exChk <- true

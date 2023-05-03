@@ -105,6 +105,7 @@ func busInit() (FetChans, DecChans, ExChans, MemChans, WbChans) {
 	dec_nIns := make(chan int)
 	bran := make(chan int)
 	bTaken := make(chan bool)
+	fet_stall := make(chan bool)
 
 	//decode channels
 	dec_dis := make(chan bool)
@@ -112,7 +113,7 @@ func busInit() (FetChans, DecChans, ExChans, MemChans, WbChans) {
 	dec_mRegsOk := make(chan bool)
 
 	//execute channels
-	ex_stall := make(chan bool)
+	ex_memOk := make(chan bool)
 	ex_mRegsOk := make(chan bool)
 	wbMRegs := make(chan bool)
 
@@ -120,28 +121,30 @@ func busInit() (FetChans, DecChans, ExChans, MemChans, WbChans) {
 		nIns:   dec_nIns,
 		bran:   bran,
 		bTaken: bTaken,
+		stall:  fet_stall,
 	}
 
 	decCh := DecChans{
-		nIns:   dec_nIns,
-		bran:   bran,
-		dis:    dec_dis,
-		stall:  dec_stall,
-		mRegOk: dec_mRegsOk,
+		nIns:      dec_nIns,
+		bran:      bran,
+		dis:       dec_dis,
+		stall:     dec_stall,
+		fet_stall: fet_stall,
+		mRegOk:    dec_mRegsOk,
 	}
 
 	exCh := ExChans{
 		bTaken:      bTaken,
 		dec_dis:     dec_dis,
 		dec_stall:   dec_stall,
-		stall:       ex_stall,
+		memOk:       ex_memOk,
 		dec_mRegsOk: dec_mRegsOk,
 		mRegsOk:     ex_mRegsOk,
 		wbMRegs:     wbMRegs,
 	}
 
 	memCh := MemChans{
-		ex_stall: ex_stall,
+		ex_memOk: ex_memOk,
 	}
 
 	wbCh := WbChans{
@@ -181,27 +184,36 @@ func cacheInit() (Cache, Cache, Cache, Cache, FetCache, DecCache, ExCache) {
 	forks <- make([]uint, 0)
 	bLast := make(chan bool, 1)
 	bLast <- false
+	fet_lastStall := make(chan bool, 1)
+	fet_lastStall <- false
 	fetCa := FetCache{
-		forks: forks,
-		bLast: bLast,
+		forks:    forks,
+		bLast:    bLast,
+		lcystall: fet_lastStall,
 	}
 
 	dec_lastCycleStall := make(chan bool, 1)
 	dec_lastCycleStall <- false
 	dec_stallData := make(chan []byte, 1)
 	dec_stallData <- make([]byte, 14)
+	dec_lastIns := make(chan uint32, 1)
+	dec_lastIns <- uint32(0)
 	decCa := DecCache{
 		lcystall:  dec_lastCycleStall,
 		stallData: dec_stallData,
+		lastIns:   dec_lastIns,
 	}
 
 	ex_stallCycles := make(chan int, 1)
 	ex_stallCycles <- 0
 	ex_stallData := make(chan []byte, 1)
 	ex_stallData <- make([]byte, 14)
+	ex_stallmRegs := make(chan []CaAddr, 1)
+	ex_stallmRegs <- make([]CaAddr, 0)
 	exCa := ExCache{
 		stallCycles: ex_stallCycles,
 		stallData:   ex_stallData,
+		stallmRegs:  ex_stallmRegs,
 	}
 
 	return l1Cache, l2Cache, l3Cache, modRegCa, fetCa, decCa, exCa
@@ -435,7 +447,7 @@ cycle:
 
 		go Execute(flags, memory, sysCache, exBuf, exChans, exCache, modRegCache)
 
-		go WriteToMemory(flags, memory, sysCache, memBuf, memChans)
+		go Mem(flags, memory, sysCache, memBuf, memChans)
 
 		go WriteBack(registers, flags, wbBuf, wbChans, modRegCache)
 
