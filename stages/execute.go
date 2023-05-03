@@ -125,81 +125,28 @@ func updateModRegs(wb byte, desReg int, result int, modRegs []c.CaAddr) []c.CaAd
 	return modRegs
 }
 
-// Execute given instruction
-func Execute(flg c.Flags, mem c.Memory, sysCa c.SysCache, buf c.Buffer, bus ExChans,
-	cache ExCache, modRegCa c.Cache) {
+func executeDat(opr op.Op, opds []int, mem c.Memory, sysCa c.SysCache) (
+	int, int, int, byte, byte, int, bool) {
 
-	decData := <-buf.In
+	wb := byte(0)
+	wmem := byte(0)
+	halt := false
+	stallCycles := 0
 
-	stallCycles := <-cache.StallCycles
-	stallData := <-cache.StallData
-	stallmRegs := <-cache.StallmRegs
-
-	opc := uint(decData[0])
-	opr := op.MatchOpc(opc)
-
-	var opds []int
-	for i := 1; i < 13; i += 4 {
-		uopd := binary.BigEndian.Uint32(decData[i : i+4])
-		opd := int32(uopd)
-		opds = append(opds, int(opd))
-	}
-
-	stall := false
-	if stallCycles > 0 {
-		stall = true
-		opr = op.Nop
-	} else {
-		stall = opr == op.Mul || opr == op.Div || opr == op.Ld
-	}
-	bus.Dec_stall <- stall
-
-	if opr.Class != "ctf" {
-		bus.BTaken <- true
-		bus.Dec_dis <- false
-	}
-
-	if opr != op.Ld {
-		<-bus.MemOk
-	}
-
-	if opr != op.Hlt {
-		bus.WbMRegs <- false
-	}
-
-	var wmem byte
-	var wb byte
-
-	var result int
 	var desReg int
 	var memLoc int
+	var result int
 
 	switch opr.Class {
 	case "ctf":
 		switch opr {
 		case op.Nop:
-			bus.BTaken <- true
-			bus.Dec_dis <- false
 
 		case op.Hlt:
-			bus.BTaken <- true
-			bus.Dec_dis <- false
-			bus.WbMRegs <- true
-			flg.Halt <- true
+			halt = true
 
 		case op.Jmp:
-			bus.BTaken <- true
-			bus.Dec_dis <- false
 
-		case op.Beq:
-			branch := opds[0] == opds[1]
-			bus.BTaken <- branch
-			bus.Dec_dis <- !(branch)
-
-		case op.Bz:
-			branch := opds[0] == 0
-			bus.BTaken <- branch
-			bus.Dec_dis <- !branch
 		}
 
 	case "ari":
@@ -258,8 +205,6 @@ func Execute(flg c.Flags, mem c.Memory, sysCa c.SysCache, buf c.Buffer, bus ExCh
 	case "dat":
 		switch opr {
 		case op.Ld:
-			<-bus.MemOk
-
 			wb = 1
 			desReg = opds[0]
 			memLoc = opds[1] + opds[2]
@@ -280,15 +225,196 @@ func Execute(flg c.Flags, mem c.Memory, sysCa c.SysCache, buf c.Buffer, bus ExCh
 		}
 	}
 
+	return result, desReg, memLoc, wb, wmem, stallCycles, halt
+}
+
+func executeBr(opr op.Op, opds []int) (int, int, byte, bool, int, bool) {
+	wb := byte(0)
+	halt := false
+	stallCycles := 0
+	branchTaken := true
+
+	var desReg int
+	var result int
+
+	switch opr.Class {
+	case "ctf":
+		switch opr {
+		case op.Nop:
+
+		case op.Hlt:
+			halt = true
+
+		case op.Beq:
+			stallCycles = 1
+
+			branchTaken = opds[0] == opds[1]
+
+		case op.Bz:
+			stallCycles = 1
+
+			branchTaken = opds[0] == 0
+
+		case op.Jmp:
+
+		}
+
+	case "ari":
+		wb = 1
+		desReg = opds[0]
+
+		switch opr {
+		case op.Add:
+			result = opds[1] + opds[2]
+
+		case op.Sub:
+			result = opds[1] - opds[2]
+
+		case op.Mul:
+			stallCycles = 3
+
+			result = opds[1] * opds[2]
+
+		case op.Div:
+			stallCycles = 16
+
+			if opds[2] == 0 {
+				result = 0
+			} else {
+				result = opds[1] / opds[2]
+			}
+		}
+
+	case "log":
+		wb = 1
+		desReg = opds[0]
+
+		switch opr {
+		case op.And:
+			result = opds[1] & opds[2]
+
+		case op.Or:
+			result = opds[1] | opds[2]
+
+		case op.Xor:
+			result = opds[1] ^ opds[2]
+
+		case op.Not:
+			result = ^opds[1]
+
+		case op.Cmp:
+			if opds[1] > opds[2] {
+				result = 1
+			} else if opds[1] == opds[2] {
+				result = 0
+			} else {
+				result = -1
+			}
+		}
+
+	case "dat":
+		switch opr {
+		case op.Mv:
+			wb = 1
+			desReg = opds[0]
+
+			result = opds[1]
+		}
+	}
+
+	return result, desReg, wb, branchTaken, stallCycles, halt
+}
+
+// Execute given instruction
+func Execute(flg c.Flags, mem c.Memory, sysCa c.SysCache, buf c.Buffer, bus ExChans,
+	cache ExCache, modRegCa c.Cache) {
+
+	decData := <-buf.In
+
+	stallCycles := <-cache.StallCycles
+	stallData := <-cache.StallData
+	stallmRegs := <-cache.StallmRegs
+
+	datOpc := uint(decData[0])
+	datOpr := op.MatchOpc(datOpc)
+
+	var datOpds []int
+	for i := 1; i < 13; i += 4 {
+		opd := int32(binary.BigEndian.Uint32(decData[i : i+4]))
+		datOpds = append(datOpds, int(opd))
+	}
+
+	brOpc := uint(decData[13])
+	brOpr := op.MatchOpc(brOpc)
+
+	var brOpds []int
+	for i := 14; i < 26; i += 4 {
+		opd := int32(binary.BigEndian.Uint32(decData[i : i+4]))
+		brOpds = append(brOpds, int(opd))
+	}
+
+	datFirst := decData[26]
+
+	stall := false
+	if stallCycles > 0 {
+		stall = true
+		datOpr = op.Nop
+		brOpr = op.Nop
+	} else {
+		stall = datOpr == op.Mul || datOpr == op.Div || datOpr == op.Ld ||
+			brOpr == op.Mul || brOpr == op.Div || brOpr == op.Beq || brOpr == op.Bz
+	}
+	bus.Dec_stall <- stall
+
+	if !(datOpr == op.Hlt || brOpr == op.Hlt) {
+		bus.WbMRegs <- false
+	}
+
+	<-bus.MemOk
+	datResult, datDReg, memLoc, datWb,
+		wmem, datStallCys, datHalt := executeDat(datOpr, datOpds, mem, sysCa)
+
+	brResult, brDReg, brWb, brTaken,
+		brStallCys, brHalt := executeBr(brOpr, brOpds)
+
+	if datHalt || brHalt {
+		flg.Halt <- true
+	}
+
+	bus.BTaken <- brTaken
+	bus.Dec_dis <- !brTaken
+
+	stallCycles = datStallCys
+	if brStallCys > stallCycles {
+		stallCycles = brStallCys
+	}
+
 	<-bus.MRegsOk
 	modRegs := <-modRegCa
 
+	wb := byte(0)
+	if datWb == 1 || brWb == 1 {
+		wb = 1
+	}
+
 	if stall && wb == 1 {
-		stallmRegs = updateModRegs(wb, desReg, result, modRegs)
+		if datFirst == 1 {
+			stallmRegs = updateModRegs(datWb, datDReg, datResult, modRegs)
+			stallmRegs = updateModRegs(brWb, brDReg, brResult, stallmRegs)
+		} else {
+			stallmRegs = updateModRegs(brWb, brDReg, brResult, modRegs)
+			stallmRegs = updateModRegs(datWb, datDReg, datResult, stallmRegs)
+		}
 	} else if stallCycles == 1 {
 		modRegs = stallmRegs
 	} else {
-		modRegs = updateModRegs(wb, desReg, result, modRegs)
+		if datFirst == 1 {
+			modRegs = updateModRegs(datWb, datDReg, datResult, modRegs)
+			modRegs = updateModRegs(brWb, brDReg, brResult, modRegs)
+		} else {
+			modRegs = updateModRegs(brWb, brDReg, brResult, modRegs)
+			modRegs = updateModRegs(datWb, datDReg, datResult, modRegs)
+		}
 	}
 
 	modRegCa <- modRegs
@@ -298,15 +424,22 @@ func Execute(flg c.Flags, mem c.Memory, sysCa c.SysCache, buf c.Buffer, bus ExCh
 
 	memData = append(memData, wmem)
 	memData = binary.BigEndian.AppendUint32(memData, uint32(memLoc))
+	memData = binary.BigEndian.AppendUint32(memData, uint32(datResult))
 
-	memData = append(memData, wb)
-	memData = binary.BigEndian.AppendUint32(memData, uint32(desReg))
+	memData = append(memData, datWb)
+	memData = binary.BigEndian.AppendUint32(memData, uint32(datDReg))
+	memData = binary.BigEndian.AppendUint32(memData, uint32(datResult))
 
-	memData = binary.BigEndian.AppendUint32(memData, uint32(result))
+	memData = append(memData, brWb)
+	memData = binary.BigEndian.AppendUint32(memData, uint32(brDReg))
+	memData = binary.BigEndian.AppendUint32(memData, uint32(brResult))
 
-	if opr == op.Mul || opr == op.Div || opr == op.Ld {
+	memData = append(memData, datFirst)
+
+	if datOpr == op.Mul || datOpr == op.Div || datOpr == op.Ld ||
+		brOpr == op.Mul || brOpr == op.Div || brOpr == op.Beq || brOpr == op.Bz {
 		stallData = memData
-		memData = make([]byte, 14)
+		memData = make([]byte, 29)
 	}
 
 	if stall {

@@ -1,15 +1,17 @@
 package stages
 
 import (
+	"encoding/binary"
+
 	c "github.com/computerwiz27/simulator/components"
 	"github.com/computerwiz27/simulator/op"
 )
 
 // Channels used to comunicate with the system
 type FetChans struct {
-	NIns chan int //next instruction
-	Bran chan int //ast instruction was a branch
-	//.           //0 for no, 1 for jmp, and 2 for conditional branches
+	NIns chan []int //next instruction
+	Bran chan int   //ast instruction was a branch
+	//.             //0 for no, 1 for jmp, and 2 for conditional branches
 	BTaken chan bool //last branch was taken
 	Stall  chan bool
 }
@@ -19,6 +21,20 @@ type FetCache struct {
 	Forks     chan []uint //array of fork locations
 	LCyBranch chan bool   //last cycle was a branch
 	LCyStall  chan bool   //last cycle was a stall
+}
+
+func fetchIns(prog []byte, counter uint) []byte {
+	var ins []byte
+
+	if 4*(counter) >= uint(len(prog)) {
+		ins = make([]byte, 4)
+	} else {
+		for i := 0; i < 4; i++ {
+			ins = append(ins, prog[4*int(counter)+i])
+		}
+	}
+
+	return ins
 }
 
 // Fetch the next instruction from memory
@@ -38,13 +54,16 @@ func Fetch(regs c.Registers, flg c.Flags, prog c.Memory,
 
 	initialCounter := counter
 
+	count1 := counter
+	count2 := counter + 1
+
 	//For these cases update the counter before fetching the instruction
 
 	//if last cycle was a JMP instruction
 	if branch == 1 {
 		//increase counter to target instruction with compnsation for
 		//last couple of cycles
-		counter += uint(decIns) - 2
+		counter += uint(decIns[0]) - 2
 		//if the cycle before that was a branch instruction increment counter
 		//to ajust for not incrementing the counter on that cycle
 		if lastCycleBranch {
@@ -57,7 +76,7 @@ func Fetch(regs c.Registers, flg c.Flags, prog c.Memory,
 		// append last intruction as a fork
 		forks = append(forks, counter-1)
 		//likewise increase counter with comensation
-		counter += uint(decIns) - 1
+		counter += uint(decIns[0]) - 1
 		//likewise compensate if last cycle was a branch
 		if lastCycleBranch {
 			counter++
@@ -72,27 +91,24 @@ func Fetch(regs c.Registers, flg c.Flags, prog c.Memory,
 
 	//if it is the first cycle after a stall, update the counter
 	if !stall && lastCycleStall {
-		counter += uint(decIns)
+		counter += uint(decIns[0])
 	}
 
-	//fetch instruction
-	var ins []byte
-	if 4*counter >= uint(len(progMem)) {
-		ins = make([]byte, 4)
-	} else {
-		for i := 0; i < 4; i++ {
-			ins = append(ins, progMem[4*int(counter)+i])
-		}
-	}
+	//fetch instructions
+	ins1 := fetchIns(progMem, count1)
+	ins2 := fetchIns(progMem, count2)
 
-	debugIns := 0b11111000 & ins[0]
-	debugIns = debugIns >> 3
-	opr := op.MatchOpc(uint(debugIns))
-	_ = opr
+	debugIns1 := 0b11111000 & ins1[0]
+	debugIns1 = debugIns1 >> 3
+	debugIns2 := 0b11111000 & ins2[0]
+	debugIns2 = debugIns2 >> 3
+	opr1 := op.MatchOpc(uint(debugIns1))
+	opr2 := op.MatchOpc(uint(debugIns2))
+	_, _ = opr1, opr2
 
 	// If last cycle was a normal instruction increment the counter
 	if branch == 0 {
-		counter += uint(decIns)
+		counter += uint(decIns[0])
 		lastCycleBranch = false
 	} else {
 		lastCycleBranch = true
@@ -107,8 +123,12 @@ func Fetch(regs c.Registers, flg c.Flags, prog c.Memory,
 		lastCycleStall = false
 	}
 
+	decData := binary.BigEndian.AppendUint32(ins1, uint32(count1))
+	decData = append(decData, ins2...)
+	decData = binary.BigEndian.AppendUint32(decData, uint32(count2))
+
 	//Pass the instruction to decode
-	buf.Out <- ins
+	buf.Out <- decData
 
 	//Return values to channels
 	regs.Pc <- counter

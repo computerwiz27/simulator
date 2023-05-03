@@ -7,7 +7,6 @@ import (
 )
 
 type WbChans struct {
-	WbMRegs    chan bool
 	Ex_mRegsOk chan bool
 }
 
@@ -28,46 +27,58 @@ func WriteBack(regs c.Registers, flg c.Flags, buf c.Buffer, bus WbChans,
 
 	memData := <-buf.In
 
-	write := false
+	write1 := false
 	if memData[0] == 1 {
-		write = true
+		write1 = true
 	}
 
-	des := binary.BigEndian.Uint32(memData[1:5])
+	des1 := binary.BigEndian.Uint32(memData[1:5])
 
-	uval := binary.BigEndian.Uint32(memData[5:9])
-	val := int(int32(uval))
+	uval1 := binary.BigEndian.Uint32(memData[5:9])
+	val1 := int(int32(uval1))
 
-	dumpModRegs := <-bus.WbMRegs
-	if dumpModRegs {
-		modReg := <-modRegCa
-		modRegCa <- modReg
+	write2 := false
+	if memData[9] == 1 {
+		write2 = true
+	}
 
-		for i := 0; i < len(modReg); i++ {
-			<-regs.Reg[modReg[i].Loc]
-			regs.Reg[modReg[i].Loc] <- modReg[i].Val
-		}
+	des2 := binary.BigEndian.Uint32(memData[10:15])
 
-		if write {
-			<-regs.Reg[des]
-			regs.Reg[des] <- val
-		}
+	uval2 := binary.BigEndian.Uint32(memData[15:19])
+	val2 := int(int32(uval2))
 
+	oneFirst := true
+	if memData[19] == 0 {
+		oneFirst = false
+	}
+
+	if !(write1 || write2) {
 		bus.Ex_mRegsOk <- true
 		flg.WbChk <- true
 		return
 	}
 
-	if !write {
-		bus.Ex_mRegsOk <- true
-		flg.WbChk <- true
-		return
+	if oneFirst {
+		removeModReg(int(des1), val1, modRegCa)
+
+		<-regs.Reg[des1]
+		regs.Reg[des1] <- val1
+
+		removeModReg(int(des2), val2, modRegCa)
+
+		<-regs.Reg[des2]
+		regs.Reg[des2] <- val2
+	} else {
+		removeModReg(int(des2), val2, modRegCa)
+
+		<-regs.Reg[des2]
+		regs.Reg[des2] <- val2
+
+		removeModReg(int(des1), val1, modRegCa)
+
+		<-regs.Reg[des1]
+		regs.Reg[des1] <- val1
 	}
-
-	removeModReg(int(des), val, modRegCa)
-
-	<-regs.Reg[des]
-	regs.Reg[des] <- val
 
 	bus.Ex_mRegsOk <- true
 

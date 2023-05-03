@@ -67,16 +67,16 @@ func bufInit() (c.Buffer, c.Buffer, c.Buffer, c.Buffer, c.Buffer) {
 
 	//Initialise the buffer channels with all zeros
 	fet_dec := make(chan []byte, 1)
-	fet_dec <- make([]byte, 4)
+	fet_dec <- make([]byte, 16)
 
 	dec_ex := make(chan []byte, 1)
-	dec_ex <- make([]byte, 14)
+	dec_ex <- make([]byte, 27)
 
 	ex_mem := make(chan []byte, 1)
-	ex_mem <- make([]byte, 14)
+	ex_mem <- make([]byte, 29)
 
 	mem_wb := make(chan []byte, 1)
-	mem_wb <- make([]byte, 9)
+	mem_wb <- make([]byte, 20)
 
 	fetBuf := c.Buffer{
 		Out: fet_dec,
@@ -109,7 +109,7 @@ func busInit() (s.FetChans, s.DecChans, s.ExChans, s.MemChans, s.WbChans) {
 	//these channels don't have a buffer since the stages operate in parallel
 
 	//fetch channels
-	dec_nIns := make(chan int)
+	dec_nIns := make(chan []int)
 	bran := make(chan int)
 	bTaken := make(chan bool)
 	fet_stall := make(chan bool)
@@ -156,7 +156,6 @@ func busInit() (s.FetChans, s.DecChans, s.ExChans, s.MemChans, s.WbChans) {
 
 	wbCh := s.WbChans{
 		Ex_mRegsOk: ex_mRegsOk,
-		WbMRegs:    wbMRegs,
 	}
 
 	return fetCh, decCh, exCh, memCh, wbCh

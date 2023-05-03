@@ -74,7 +74,7 @@ func Mem(flg c.Flags, mem c.Memory, sysCa c.SysCache,
 
 		bus.Ex_memOk <- true
 
-		wbData := exData[5:14]
+		wbData := exData[5:29]
 		buf.Out <- wbData
 
 		flg.MemChk <- true
@@ -95,7 +95,7 @@ func Mem(flg c.Flags, mem c.Memory, sysCa c.SysCache,
 
 	bus.Ex_memOk <- true
 
-	wbData := exData[5:14]
+	wbData := exData[5:29]
 
 	buf.Out <- wbData
 
