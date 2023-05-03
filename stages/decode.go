@@ -1,24 +1,25 @@
-package components
+package stages
 
 import (
 	"encoding/binary"
 
+	c "github.com/computerwiz27/simulator/components"
 	"github.com/computerwiz27/simulator/op"
 )
 
 type DecChans struct {
-	nIns      chan int
-	bran      chan int
-	dis       chan bool
-	stall     chan bool
-	fet_stall chan bool
-	mRegOk    chan bool
+	NIns      chan int
+	Bran      chan int
+	Dis       chan bool
+	Stall     chan bool
+	Fet_stall chan bool
+	MRegOk    chan bool
 }
 
 type DecCache struct {
-	lcystall  chan bool
-	stallData chan []byte
-	lastIns   chan uint32
+	Lcystall  chan bool
+	StallData chan []byte
+	LastIns   chan uint32
 }
 
 func imdCheck(ins uint32) bool {
@@ -59,17 +60,17 @@ func decodeSigned(val uint32, start int, end int) int {
 	return int(uval) * sign
 }
 
-func modifiedReg(reg int, mRes []CaAddr) (bool, int) {
+func modifiedReg(reg int, mRes []c.CaAddr) (bool, int) {
 
 	for i := 0; i < len(mRes); i++ {
-		if mRes[i].loc == reg {
-			return true, mRes[i].val
+		if mRes[i].Loc == reg {
+			return true, mRes[i].Val
 		}
 	}
 	return false, 0
 }
 
-func getRegVal(targetReg int, regs Registers, mRegs []CaAddr) int {
+func getRegVal(targetReg int, regs c.Registers, mRegs []c.CaAddr) int {
 
 	mod, mVal := modifiedReg(targetReg, mRegs)
 
@@ -78,24 +79,24 @@ func getRegVal(targetReg int, regs Registers, mRegs []CaAddr) int {
 	if mod {
 		ret = mVal
 	} else {
-		ret = <-regs.reg[targetReg]
-		regs.reg[targetReg] <- ret
+		ret = <-regs.Reg[targetReg]
+		regs.Reg[targetReg] <- ret
 	}
 
 	return ret
 }
 
 // Decode the instruction
-func Decode(regs Registers, flg Flags, mem Memory,
-	buf Buffer, bus DecChans, cache DecCache, modRegCa Cache) {
+func Decode(regs c.Registers, flg c.Flags, mem c.Memory,
+	buf c.Buffer, bus DecChans, cache DecCache, modRegCa c.Cache) {
 
-	fetData := <-buf.in
-	lastCycleStall := <-cache.lcystall
-	stallData := <-cache.stallData
-	lastIns := <-cache.lastIns
+	fetData := <-buf.In
+	lastCycleStall := <-cache.Lcystall
+	stallData := <-cache.StallData
+	lastIns := <-cache.LastIns
 
-	stall := <-bus.stall
-	discard := <-bus.dis
+	stall := <-bus.Stall
+	discard := <-bus.Dis
 
 	ins := binary.BigEndian.Uint32(fetData)
 	if stall && lastCycleStall {
@@ -123,7 +124,7 @@ func Decode(regs Registers, flg Flags, mem Memory,
 		opds = append(opds, 0)
 	}
 
-	bus.fet_stall <- stall
+	bus.Fet_stall <- stall
 
 	nextIns := 1
 
@@ -136,11 +137,11 @@ func Decode(regs Registers, flg Flags, mem Memory,
 	}
 
 	if opr.Class != "ctf" {
-		bus.nIns <- nextIns
-		bus.bran <- 0
+		bus.NIns <- nextIns
+		bus.Bran <- 0
 	}
 
-	<-bus.mRegOk
+	<-bus.MRegOk
 	modRegs := <-modRegCa
 	modRegCa <- modRegs
 
@@ -148,17 +149,17 @@ func Decode(regs Registers, flg Flags, mem Memory,
 	case "ctf":
 		switch opr {
 		case op.Nop, op.Hlt:
-			bus.nIns <- nextIns
-			bus.bran <- 0
+			bus.NIns <- nextIns
+			bus.Bran <- 0
 
 		case op.Jmp:
 			opds[0] = decodeSigned(ins, 5, 31)
 			if stall {
-				bus.nIns <- nextIns
+				bus.NIns <- nextIns
 			} else {
-				bus.nIns <- opds[0]
+				bus.NIns <- opds[0]
 			}
-			bus.bran <- 1
+			bus.Bran <- 1
 
 		case op.Beq:
 			ra := decodeUnsigned(ins, 6, 10)
@@ -173,12 +174,12 @@ func Decode(regs Registers, flg Flags, mem Memory,
 
 			opds[2] = decodeSigned(ins, 11, 19)
 			if stall {
-				bus.nIns <- nextIns
+				bus.NIns <- nextIns
 			} else {
-				bus.nIns <- opds[2]
+				bus.NIns <- opds[2]
 			}
 
-			bus.bran <- 2
+			bus.Bran <- 2
 
 		case op.Bz:
 			ra := decodeUnsigned(ins, 5, 9)
@@ -186,12 +187,12 @@ func Decode(regs Registers, flg Flags, mem Memory,
 
 			opds[1] = decodeSigned(ins, 10, 31)
 			if stall {
-				bus.nIns <- 0
+				bus.NIns <- 0
 			} else {
-				bus.nIns <- opds[1]
+				bus.NIns <- opds[1]
 			}
 
-			bus.bran <- 2
+			bus.Bran <- 2
 		}
 
 	case "ari", "log":
@@ -279,11 +280,11 @@ func Decode(regs Registers, flg Flags, mem Memory,
 		lastCycleStall = false
 	}
 
-	cache.lcystall <- lastCycleStall
-	cache.stallData <- stallData
-	cache.lastIns <- lastIns
+	cache.Lcystall <- lastCycleStall
+	cache.StallData <- stallData
+	cache.LastIns <- lastIns
 
-	buf.out <- exData
+	buf.Out <- exData
 
-	flg.decChk <- true
+	flg.DecChk <- true
 }

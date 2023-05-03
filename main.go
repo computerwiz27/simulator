@@ -4,7 +4,7 @@ import (
 	"flag"
 	"os"
 
-	"github.com/computerwiz27/simulator/components"
+	"github.com/computerwiz27/simulator/controller"
 )
 
 func check(e error) {
@@ -32,5 +32,5 @@ func main() {
 	prog, err := os.ReadFile(*progFile)
 	check(err)
 
-	components.Run(mem, *memOut, prog, *step)
+	controller.Run(mem, *memOut, prog, *step)
 }

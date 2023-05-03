@@ -1,83 +1,84 @@
-package components
+package stages
 
 import (
 	"encoding/binary"
 	"strconv"
 	"strings"
 
+	c "github.com/computerwiz27/simulator/components"
 	"github.com/computerwiz27/simulator/op"
 )
 
 type ExChans struct {
-	bTaken      chan bool
-	dec_dis     chan bool
-	dec_stall   chan bool
-	memOk       chan bool
-	dec_mRegsOk chan bool
-	mRegsOk     chan bool
-	wbMRegs     chan bool
+	BTaken      chan bool
+	Dec_dis     chan bool
+	Dec_stall   chan bool
+	MemOk       chan bool
+	Dec_mRegsOk chan bool
+	MRegsOk     chan bool
+	WbMRegs     chan bool
 }
 
 type ExCache struct {
-	stallCycles chan int
-	stallmRegs  chan []CaAddr
-	stallData   chan []byte
+	StallCycles chan int
+	StallmRegs  chan []c.CaAddr
+	StallData   chan []byte
 }
 
-func mvEle2Front(array []CaAddr, pos int) []CaAddr {
+func mvEle2Front(array []c.CaAddr, pos int) []c.CaAddr {
 	ele := array[pos]
 	array = append(array[:pos], array[pos+1:]...)
-	array = append([]CaAddr{ele}, array...)
+	array = append([]c.CaAddr{ele}, array...)
 
 	return array
 }
 
-func replaceEle(array []CaAddr, ele CaAddr) []CaAddr {
-	array = append([]CaAddr{ele}, array[:len(array)-1]...)
+func replaceEle(array []c.CaAddr, ele c.CaAddr) []c.CaAddr {
+	array = append([]c.CaAddr{ele}, array[:len(array)-1]...)
 	return array
 }
 
-func readFromMemory(loc int, mem Memory, sysCa SysCache) (int, int) {
-	l1Cache := <-sysCa.l1
+func readFromMemory(loc int, mem c.Memory, sysCa c.SysCache) (int, int) {
+	l1Cache := <-sysCa.L1
 
 	for i := 0; i < len(l1Cache); i++ {
-		if l1Cache[i].loc == loc {
+		if l1Cache[i].Loc == loc {
 			l1Cache = mvEle2Front(l1Cache, i)
 
-			sysCa.l1 <- l1Cache
+			sysCa.L1 <- l1Cache
 
-			return l1Cache[0].val, 3
+			return l1Cache[0].Val, 3
 		}
 	}
 
-	l2Cache := <-sysCa.l2
+	l2Cache := <-sysCa.L2
 
 	for i := 0; i < len(l2Cache); i++ {
-		if l2Cache[i].loc == loc {
+		if l2Cache[i].Loc == loc {
 			l2Cache = mvEle2Front(l2Cache, i)
 			l1Cache = replaceEle(l1Cache, l2Cache[i])
 
-			sysCa.l1 <- l1Cache
-			sysCa.l2 <- l2Cache
+			sysCa.L1 <- l1Cache
+			sysCa.L2 <- l2Cache
 
-			return l2Cache[0].val, 10
+			return l2Cache[0].Val, 10
 		}
 	}
 
-	l3Cache := <-sysCa.l3
+	l3Cache := <-sysCa.L3
 
 	for i := 0; i < len(l3Cache); i++ {
-		if l3Cache[i].loc == loc {
+		if l3Cache[i].Loc == loc {
 			l3Cache = mvEle2Front(l3Cache, i)
 
 			l1Cache = replaceEle(l1Cache, l3Cache[i])
 			l2Cache = replaceEle(l2Cache, l3Cache[i])
 
-			sysCa.l1 <- l1Cache
-			sysCa.l2 <- l2Cache
-			sysCa.l3 <- l3Cache
+			sysCa.L1 <- l1Cache
+			sysCa.L2 <- l2Cache
+			sysCa.L3 <- l3Cache
 
-			return l3Cache[0].val, 40
+			return l3Cache[0].Val, 40
 		}
 
 	}
@@ -89,50 +90,50 @@ func readFromMemory(loc int, mem Memory, sysCa SysCache) (int, int) {
 	val, err := strconv.Atoi(lines[loc])
 
 	if loc >= len(lines) || lines[loc] == "" || err != nil {
-		l1Cache = replaceEle(l1Cache, CaAddr{loc: loc, val: 0})
-		l2Cache = replaceEle(l2Cache, CaAddr{loc: loc, val: 0})
-		l3Cache = replaceEle(l3Cache, CaAddr{loc: loc, val: 0})
+		l1Cache = replaceEle(l1Cache, c.CaAddr{Loc: loc, Val: 0})
+		l2Cache = replaceEle(l2Cache, c.CaAddr{Loc: loc, Val: 0})
+		l3Cache = replaceEle(l3Cache, c.CaAddr{Loc: loc, Val: 0})
 		val = 0
 	}
 
-	l1Cache = replaceEle(l1Cache, CaAddr{loc: loc, val: val})
-	l2Cache = replaceEle(l2Cache, CaAddr{loc: loc, val: val})
-	l3Cache = replaceEle(l3Cache, CaAddr{loc: loc, val: val})
+	l1Cache = replaceEle(l1Cache, c.CaAddr{Loc: loc, Val: val})
+	l2Cache = replaceEle(l2Cache, c.CaAddr{Loc: loc, Val: val})
+	l3Cache = replaceEle(l3Cache, c.CaAddr{Loc: loc, Val: val})
 
-	sysCa.l1 <- l1Cache
-	sysCa.l2 <- l2Cache
-	sysCa.l3 <- l3Cache
+	sysCa.L1 <- l1Cache
+	sysCa.L2 <- l2Cache
+	sysCa.L3 <- l3Cache
 	mem <- memBytes
 
 	return val, 100
 }
 
-func updateModRegs(wb byte, desReg int, result int, modRegs []CaAddr) []CaAddr {
+func updateModRegs(wb byte, desReg int, result int, modRegs []c.CaAddr) []c.CaAddr {
 	if wb == 1 {
 		mod := false
 		for i := 0; i < len(modRegs); i++ {
-			if modRegs[i].loc == desReg {
-				modRegs[i].val = result
+			if modRegs[i].Loc == desReg {
+				modRegs[i].Val = result
 				mod = true
 				break
 			}
 		}
 		if !mod {
-			modRegs = append(modRegs, CaAddr{desReg, result})
+			modRegs = append(modRegs, c.CaAddr{Loc: desReg, Val: result})
 		}
 	}
 	return modRegs
 }
 
 // Execute given instruction
-func Execute(flg Flags, mem Memory, sysCa SysCache, buf Buffer, bus ExChans,
-	cache ExCache, modRegCa Cache) {
+func Execute(flg c.Flags, mem c.Memory, sysCa c.SysCache, buf c.Buffer, bus ExChans,
+	cache ExCache, modRegCa c.Cache) {
 
-	decData := <-buf.in
+	decData := <-buf.In
 
-	stallCycles := <-cache.stallCycles
-	stallData := <-cache.stallData
-	stallmRegs := <-cache.stallmRegs
+	stallCycles := <-cache.StallCycles
+	stallData := <-cache.StallData
+	stallmRegs := <-cache.StallmRegs
 
 	opc := uint(decData[0])
 	opr := op.MatchOpc(opc)
@@ -151,19 +152,19 @@ func Execute(flg Flags, mem Memory, sysCa SysCache, buf Buffer, bus ExChans,
 	} else {
 		stall = opr == op.Mul || opr == op.Div || opr == op.Ld
 	}
-	bus.dec_stall <- stall
+	bus.Dec_stall <- stall
 
 	if opr.Class != "ctf" {
-		bus.bTaken <- true
-		bus.dec_dis <- false
+		bus.BTaken <- true
+		bus.Dec_dis <- false
 	}
 
 	if opr != op.Ld {
-		<-bus.memOk
+		<-bus.MemOk
 	}
 
 	if opr != op.Hlt {
-		bus.wbMRegs <- false
+		bus.WbMRegs <- false
 	}
 
 	var wmem byte
@@ -177,28 +178,28 @@ func Execute(flg Flags, mem Memory, sysCa SysCache, buf Buffer, bus ExChans,
 	case "ctf":
 		switch opr {
 		case op.Nop:
-			bus.bTaken <- true
-			bus.dec_dis <- false
+			bus.BTaken <- true
+			bus.Dec_dis <- false
 
 		case op.Hlt:
-			bus.bTaken <- true
-			bus.dec_dis <- false
-			bus.wbMRegs <- true
-			flg.halt <- true
+			bus.BTaken <- true
+			bus.Dec_dis <- false
+			bus.WbMRegs <- true
+			flg.Halt <- true
 
 		case op.Jmp:
-			bus.bTaken <- true
-			bus.dec_dis <- false
+			bus.BTaken <- true
+			bus.Dec_dis <- false
 
 		case op.Beq:
 			branch := opds[0] == opds[1]
-			bus.bTaken <- branch
-			bus.dec_dis <- !(branch)
+			bus.BTaken <- branch
+			bus.Dec_dis <- !(branch)
 
 		case op.Bz:
 			branch := opds[0] == 0
-			bus.bTaken <- branch
-			bus.dec_dis <- !branch
+			bus.BTaken <- branch
+			bus.Dec_dis <- !branch
 		}
 
 	case "ari":
@@ -259,7 +260,7 @@ func Execute(flg Flags, mem Memory, sysCa SysCache, buf Buffer, bus ExChans,
 	case "dat":
 		switch opr {
 		case op.Ld:
-			<-bus.memOk
+			<-bus.MemOk
 
 			wb = 1
 			desReg = opds[0]
@@ -281,7 +282,7 @@ func Execute(flg Flags, mem Memory, sysCa SysCache, buf Buffer, bus ExChans,
 		}
 	}
 
-	<-bus.mRegsOk
+	<-bus.MRegsOk
 	modRegs := <-modRegCa
 
 	if stall && wb == 1 {
@@ -293,7 +294,7 @@ func Execute(flg Flags, mem Memory, sysCa SysCache, buf Buffer, bus ExChans,
 	}
 
 	modRegCa <- modRegs
-	bus.dec_mRegsOk <- true
+	bus.Dec_mRegsOk <- true
 
 	var memData []byte
 
@@ -317,11 +318,11 @@ func Execute(flg Flags, mem Memory, sysCa SysCache, buf Buffer, bus ExChans,
 		}
 	}
 
-	cache.stallCycles <- stallCycles
-	cache.stallData <- stallData
-	cache.stallmRegs <- stallmRegs
+	cache.StallCycles <- stallCycles
+	cache.StallData <- stallData
+	cache.StallmRegs <- stallmRegs
 
-	buf.out <- memData
+	buf.Out <- memData
 
-	flg.exChk <- true
+	flg.ExChk <- true
 }

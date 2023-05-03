@@ -1,4 +1,4 @@
-package compiler
+package controller
 
 import (
 	"encoding/binary"

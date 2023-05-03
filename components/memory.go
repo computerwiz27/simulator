@@ -1,35 +1,35 @@
 package components
 
 type Registers struct {
-	pc  chan uint
-	reg []chan int
+	Pc  chan uint
+	Reg []chan int
 }
 
 type Flags struct {
-	halt    chan bool
-	fetChck chan bool
-	decChk  chan bool
-	exChk   chan bool
-	wbChk   chan bool
-	memChk  chan bool
+	Halt    chan bool
+	FetChck chan bool
+	DecChk  chan bool
+	ExChk   chan bool
+	WbChk   chan bool
+	MemChk  chan bool
 }
 
 type Buffer struct {
-	in  chan []byte
-	out chan []byte
+	In  chan []byte
+	Out chan []byte
 }
 
 type CaAddr struct {
-	loc int
-	val int
+	Loc int
+	Val int
 }
 
 type Cache chan []CaAddr
 
 type SysCache struct {
-	l1 Cache
-	l2 Cache
-	l3 Cache
+	L1 Cache
+	L2 Cache
+	L3 Cache
 }
 
 type Memory chan []byte

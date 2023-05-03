@@ -1,13 +1,15 @@
-package components
+package stages
 
 import (
 	"encoding/binary"
 	"strconv"
 	"strings"
+
+	c "github.com/computerwiz27/simulator/components"
 )
 
 type MemChans struct {
-	ex_memOk chan bool
+	Ex_memOk chan bool
 }
 
 func writeToMem(mem []byte, loc uint32, val int) []byte {
@@ -33,11 +35,11 @@ func writeToMem(mem []byte, loc uint32, val int) []byte {
 	return mem
 }
 
-func writeToCache(cache []CaAddr, uloc uint32, val int) []CaAddr {
+func writeToCache(cache []c.CaAddr, uloc uint32, val int) []c.CaAddr {
 	loc := int(uloc)
 	for i := 0; i < len(cache); i++ {
-		if cache[i].loc == loc {
-			cache[i].val = val
+		if cache[i].Loc == loc {
+			cache[i].Val = val
 			break
 		}
 	}
@@ -45,14 +47,14 @@ func writeToCache(cache []CaAddr, uloc uint32, val int) []CaAddr {
 	return cache
 }
 
-func Mem(flg Flags, mem Memory, sysCa SysCache,
-	buf Buffer, bus MemChans) {
+func Mem(flg c.Flags, mem c.Memory, sysCa c.SysCache,
+	buf c.Buffer, bus MemChans) {
 
-	exData := <-buf.in
+	exData := <-buf.In
 	tmpMem := <-mem
-	tmpL1 := <-sysCa.l1
-	tmpL2 := <-sysCa.l2
-	tmpL3 := <-sysCa.l3
+	tmpL1 := <-sysCa.L1
+	tmpL2 := <-sysCa.L2
+	tmpL3 := <-sysCa.L3
 
 	store := false
 	if exData[0] == 1 {
@@ -66,16 +68,16 @@ func Mem(flg Flags, mem Memory, sysCa SysCache,
 
 	if !store {
 		mem <- tmpMem
-		sysCa.l1 <- tmpL1
-		sysCa.l2 <- tmpL2
-		sysCa.l3 <- tmpL3
+		sysCa.L1 <- tmpL1
+		sysCa.L2 <- tmpL2
+		sysCa.L3 <- tmpL3
 
-		bus.ex_memOk <- true
+		bus.Ex_memOk <- true
 
 		wbData := exData[5:14]
-		buf.out <- wbData
+		buf.Out <- wbData
 
-		flg.memChk <- true
+		flg.MemChk <- true
 
 		return
 	}
@@ -87,15 +89,15 @@ func Mem(flg Flags, mem Memory, sysCa SysCache,
 	tmpL3 = writeToCache(tmpL3, loc, val)
 
 	mem <- tmpMem
-	sysCa.l1 <- tmpL1
-	sysCa.l2 <- tmpL2
-	sysCa.l3 <- tmpL3
+	sysCa.L1 <- tmpL1
+	sysCa.L2 <- tmpL2
+	sysCa.L3 <- tmpL3
 
-	bus.ex_memOk <- true
+	bus.Ex_memOk <- true
 
 	wbData := exData[5:14]
 
-	buf.out <- wbData
+	buf.Out <- wbData
 
-	flg.memChk <- true
+	flg.MemChk <- true
 }

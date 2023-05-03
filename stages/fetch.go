@@ -1,34 +1,37 @@
-package components
+package stages
 
-import "github.com/computerwiz27/simulator/op"
+import (
+	c "github.com/computerwiz27/simulator/components"
+	"github.com/computerwiz27/simulator/op"
+)
 
 type FetChans struct {
-	nIns   chan int
-	bran   chan int
-	bTaken chan bool
-	stall  chan bool
+	NIns   chan int
+	Bran   chan int
+	BTaken chan bool
+	Stall  chan bool
 }
 
 type FetCache struct {
-	forks    chan []uint
-	bLast    chan bool
-	lcystall chan bool
+	Forks    chan []uint
+	BLast    chan bool
+	Lcystall chan bool
 }
 
 // Fetch the next instruction from memory
-func Fetch(regs Registers, flg Flags, prog Memory,
-	buf Buffer, bus FetChans, cache FetCache) {
+func Fetch(regs c.Registers, flg c.Flags, prog c.Memory,
+	buf c.Buffer, bus FetChans, cache FetCache) {
 
-	counter := <-regs.pc
+	counter := <-regs.Pc
 	tmp := <-prog
-	forks := <-cache.forks
-	lastCycleBranch := <-cache.bLast
-	lastCycleStall := <-cache.lcystall
+	forks := <-cache.Forks
+	lastCycleBranch := <-cache.BLast
+	lastCycleStall := <-cache.Lcystall
 
-	bTaken := <-bus.bTaken
-	stall := <-bus.stall
-	decIns := <-bus.nIns
-	branch := <-bus.bran
+	bTaken := <-bus.BTaken
+	stall := <-bus.Stall
+	decIns := <-bus.NIns
+	branch := <-bus.Bran
 
 	initialCounter := counter
 
@@ -85,13 +88,13 @@ func Fetch(regs Registers, flg Flags, prog Memory,
 		lastCycleStall = false
 	}
 
-	buf.out <- ins
+	buf.Out <- ins
 
-	regs.pc <- counter
+	regs.Pc <- counter
 	prog <- tmp
-	cache.forks <- forks
-	cache.bLast <- lastCycleBranch
-	cache.lcystall <- lastCycleStall
+	cache.Forks <- forks
+	cache.BLast <- lastCycleBranch
+	cache.Lcystall <- lastCycleStall
 
-	flg.fetChck <- true
+	flg.FetChck <- true
 }
