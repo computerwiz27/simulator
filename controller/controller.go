@@ -2,7 +2,7 @@ package controller
 
 import (
 	"bufio"
-	"encoding/binary"
+	binary "encoding/binary"
 	"fmt"
 	"os"
 	"strconv"

@@ -1,10 +1,10 @@
 package stages
 
 import (
-	"encoding/binary"
 	"strconv"
 	"strings"
 
+	"github.com/computerwiz27/simulator/binary"
 	c "github.com/computerwiz27/simulator/components"
 	"github.com/computerwiz27/simulator/op"
 )

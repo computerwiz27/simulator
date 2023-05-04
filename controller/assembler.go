@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"math"
@@ -10,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/computerwiz27/simulator/binary"
 	"github.com/computerwiz27/simulator/op"
 )
 
