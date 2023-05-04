@@ -76,7 +76,7 @@ func bufInit() (c.Buffer, c.Buffer, c.Buffer, c.Buffer, c.Buffer) {
 	ex_mem <- make([]byte, 29)
 
 	mem_wb := make(chan []byte, 1)
-	mem_wb <- make([]byte, 20)
+	mem_wb <- make([]byte, 19)
 
 	fetBuf := c.Buffer{
 		Out: fet_dec,
@@ -122,7 +122,10 @@ func busInit() (s.FetChans, s.DecChans, s.ExChans, s.MemChans, s.WbChans) {
 	//execute channels
 	ex_memOk := make(chan bool)
 	ex_mRegsOk := make(chan bool)
-	wbMRegs := make(chan bool)
+
+	//write back channels
+	wb_wrtMRegs := make(chan bool)
+	wb_mRegsOk := make(chan bool)
 
 	fetCh := s.FetChans{
 		NIns:   dec_nIns,
@@ -147,7 +150,8 @@ func busInit() (s.FetChans, s.DecChans, s.ExChans, s.MemChans, s.WbChans) {
 		MemOk:       ex_memOk,
 		Dec_mRegsOk: dec_mRegsOk,
 		MRegsOk:     ex_mRegsOk,
-		WbMRegs:     wbMRegs,
+		Wb_wrtMRegs: wb_wrtMRegs,
+		Wb_mRegsOk:  wb_mRegsOk,
 	}
 
 	memCh := s.MemChans{
@@ -156,6 +160,8 @@ func busInit() (s.FetChans, s.DecChans, s.ExChans, s.MemChans, s.WbChans) {
 
 	wbCh := s.WbChans{
 		Ex_mRegsOk: ex_mRegsOk,
+		WrtMRegs:   wb_wrtMRegs,
+		MRegsOk:    wb_mRegsOk,
 	}
 
 	return fetCh, decCh, exCh, memCh, wbCh
@@ -213,12 +219,15 @@ func cacheInit() (c.Cache, c.Cache, c.Cache, c.Cache,
 	dec_lastCycleStall <- false
 	dec_stallData := make(chan []byte, 1)
 	dec_stallData <- make([]byte, 14)
-	dec_lastIns := make(chan uint32, 1)
-	dec_lastIns <- uint32(0)
+	dec_lastIns := make(chan []uint32, 1)
+	dec_lastIns <- []uint32{0, 0}
+	dec_lastCounts := make(chan []uint32, 1)
+	dec_lastCounts <- []uint32{0, 0}
 	decCa := s.DecCache{
-		Lcystall:  dec_lastCycleStall,
-		StallData: dec_stallData,
-		LastIns:   dec_lastIns,
+		Lcystall:   dec_lastCycleStall,
+		StallData:  dec_stallData,
+		LastIns:    dec_lastIns,
+		LastCounts: dec_lastCounts,
 	}
 
 	//Execute cache

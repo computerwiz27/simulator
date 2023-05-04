@@ -1,2 +1,4 @@
-MV r0 1
-MV r1 7
+mv r0 1
+mul r0 r0 2
+nop
+hlt

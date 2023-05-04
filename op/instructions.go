@@ -1,6 +1,9 @@
 package op
 
-import "errors"
+import (
+	"errors"
+	"strings"
+)
 
 type Op struct {
 	Name   string
@@ -229,7 +232,7 @@ var instructions = []Op{
 // Defaults to Nop if name is not recognised.
 func MatchName(name string) (Op, error) {
 	for i := range instructions {
-		if name == instructions[i].Name {
+		if strings.ToUpper(name) == instructions[i].Name {
 			return instructions[i], nil
 		}
 	}

@@ -63,7 +63,7 @@ func Mem(flg c.Flags, mem c.Memory, sysCa c.SysCache,
 
 	loc := binary.BigEndian.Uint32(exData[1:5])
 
-	uval := binary.BigEndian.Uint32(exData[10:14])
+	uval := binary.BigEndian.Uint32(exData[5:9])
 	val := int(int32(uval))
 
 	if !store {
@@ -74,7 +74,7 @@ func Mem(flg c.Flags, mem c.Memory, sysCa c.SysCache,
 
 		bus.Ex_memOk <- true
 
-		wbData := exData[5:29]
+		wbData := exData[9:28]
 		buf.Out <- wbData
 
 		flg.MemChk <- true

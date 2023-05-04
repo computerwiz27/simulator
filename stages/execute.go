@@ -16,7 +16,8 @@ type ExChans struct {
 	MemOk       chan bool
 	Dec_mRegsOk chan bool
 	MRegsOk     chan bool
-	WbMRegs     chan bool
+	Wb_wrtMRegs chan bool
+	Wb_mRegsOk  chan bool
 }
 
 type ExCache struct {
@@ -366,10 +367,6 @@ func Execute(flg c.Flags, mem c.Memory, sysCa c.SysCache, buf c.Buffer, bus ExCh
 	}
 	bus.Dec_stall <- stall
 
-	if !(datOpr == op.Hlt || brOpr == op.Hlt) {
-		bus.WbMRegs <- false
-	}
-
 	<-bus.MemOk
 	datResult, datDReg, memLoc, datWb,
 		wmem, datStallCys, datHalt := executeDat(datOpr, datOpds, mem, sysCa)
@@ -377,7 +374,9 @@ func Execute(flg c.Flags, mem c.Memory, sysCa c.SysCache, buf c.Buffer, bus ExCh
 	brResult, brDReg, brWb, brTaken,
 		brStallCys, brHalt := executeBr(brOpr, brOpds)
 
-	if datHalt || brHalt {
+	halt := datHalt || brHalt
+	bus.Wb_wrtMRegs <- halt
+	if halt {
 		flg.Halt <- true
 	}
 
@@ -419,6 +418,9 @@ func Execute(flg c.Flags, mem c.Memory, sysCa c.SysCache, buf c.Buffer, bus ExCh
 
 	modRegCa <- modRegs
 	bus.Dec_mRegsOk <- true
+	if halt {
+		bus.Wb_mRegsOk <- true
+	}
 
 	var memData []byte
 

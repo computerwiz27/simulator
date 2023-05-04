@@ -17,9 +17,10 @@ type DecChans struct {
 }
 
 type DecCache struct {
-	Lcystall  chan bool
-	StallData chan []byte
-	LastIns   chan uint32
+	Lcystall   chan bool
+	StallData  chan []byte
+	LastIns    chan []uint32
+	LastCounts chan []uint32
 }
 
 func imdCheck(ins uint32) bool {
@@ -279,6 +280,7 @@ func Decode(regs c.Registers, flg c.Flags, mem c.Memory,
 	lastCycleStall := <-cache.Lcystall
 	stallData := <-cache.StallData
 	lastIns := <-cache.LastIns
+	lastCounts := <-cache.LastCounts
 
 	stall := <-bus.Stall
 	discard := <-bus.Dis
@@ -289,20 +291,25 @@ func Decode(regs c.Registers, flg c.Flags, mem c.Memory,
 	modRegs := <-modRegCa
 	modRegCa <- modRegs
 
-	ins := binary.BigEndian.Uint32(fetData)
-	if stall && lastCycleStall {
-		ins = lastIns
-	}
-	if stall {
-		lastIns = ins
-	}
-
 	ins1 := binary.BigEndian.Uint32(fetData[0:4])
 	count1 := binary.BigEndian.Uint32(fetData[4:8])
-	opr1, opds1, nextIns1, branch1, dReg1 := decodeIns(ins1, regs, modRegs, "d")
-
 	ins2 := binary.BigEndian.Uint32(fetData[8:12])
 	count2 := binary.BigEndian.Uint32(fetData[12:16])
+	if stall && lastCycleStall {
+		ins1 = lastIns[0]
+		count1 = lastCounts[0]
+		ins2 = lastIns[1]
+		count2 = lastCounts[1]
+	}
+	if stall {
+		lastIns[0] = ins1
+		lastCounts[0] = count1
+		lastIns[1] = ins2
+		lastCounts[1] = count2
+	}
+
+	opr1, opds1, nextIns1, branch1, dReg1 := decodeIns(ins1, regs, modRegs, "d")
+
 	opr2, opds2, nextIns2, branch2, sReg2 := decodeIns(ins2, regs, modRegs, "s")
 	nextIns2++
 
@@ -316,6 +323,12 @@ func Decode(regs c.Registers, flg c.Flags, mem c.Memory,
 		}
 	}
 
+	if dependence {
+		opr2 = op.Nop
+		nextIns[0] = 1
+		nextIns[1] = 1
+	}
+
 	if branch1 > 0 && int(count1)+nextIns1 != int(count2) {
 		nextIns[0] = 0
 		nextIns[1] = nextIns1
@@ -327,7 +340,7 @@ func Decode(regs c.Registers, flg c.Flags, mem c.Memory,
 		nextIns[0] = 1
 	}
 
-	if opr1 == op.Ld && opr2 == op.Ld {
+	if (opr1 == op.Ld && opr2 == op.Ld) || (opr1 == op.Wrt && opr2 == op.Wrt) {
 		nextIns[0] = 1
 		nextIns[1] = 1
 	}
@@ -365,6 +378,7 @@ func Decode(regs c.Registers, flg c.Flags, mem c.Memory,
 	cache.Lcystall <- lastCycleStall
 	cache.StallData <- stallData
 	cache.LastIns <- lastIns
+	cache.LastCounts <- lastCounts
 
 	buf.Out <- exData
 
