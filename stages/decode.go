@@ -8,12 +8,14 @@ import (
 )
 
 type DecChans struct {
-	NIns      chan []int
-	Bran      chan int
-	Dis       chan bool
-	Stall     chan bool
-	Fet_stall chan bool
-	MRegOk    chan bool
+	NIns          chan []int
+	Bran          chan int
+	Dis           chan bool
+	Stall         chan bool
+	Fet_stall     chan bool
+	Fet_forkCount chan int
+	UpdtCount     chan bool
+	MRegOk        chan bool
 }
 
 type DecCache struct {
@@ -111,7 +113,7 @@ func decodeIns(ins uint32, regs c.Registers, modRegs []c.CaAddr, retReg string) 
 		opds = append(opds, 0)
 	}
 
-	nextIns := 2
+	nextIns := 1
 	branch := 0
 
 	switch opr.Class {
@@ -317,36 +319,65 @@ func Decode(regs c.Registers, flg c.Flags, mem c.Memory,
 
 	dependence := false
 	for i := 0; i < len(sReg2); i++ {
+		if len(dReg1) == 0 {
+			break
+		}
 		if sReg2[i] == dReg1[0] {
 			dependence = true
 			break
 		}
 	}
 
+	updateCounter := false
+
 	if dependence {
 		opr2 = op.Nop
-		nextIns[0] = 1
-		nextIns[1] = 1
-	}
-
-	if branch1 > 0 && int(count1)+nextIns1 != int(count2) {
-		nextIns[0] = 0
-		nextIns[1] = nextIns1
-	}
-
-	if branch2 > 0 {
-		opr2 = op.Nop
-		nextIns[0] = nextIns1
-		nextIns[0] = 1
+		nextIns[0] = -1
+		nextIns[1] = 0
+		updateCounter = true
 	}
 
 	if (opr1 == op.Ld && opr2 == op.Ld) || (opr1 == op.Wrt && opr2 == op.Wrt) {
-		nextIns[0] = 1
-		nextIns[1] = 1
+		opr2 = op.Nop
+		nextIns[0] = -1
+		nextIns[1] = 0
+		updateCounter = true
+	}
+
+	if opr1 == op.Jmp && int(count1)+nextIns1 != int(count2) {
+		opr2 = op.Nop
+		nextIns[0] = nextIns1 - 2
+		nextIns[1] = nextIns1 - 1
+		updateCounter = true
+	}
+
+	branch := 0
+	if branch1 > 0 {
+		if branch2 > 0 || int(count1)+nextIns1 != int(count2) {
+			opr2 = op.Nop
+			nextIns[0] = nextIns1 - 2
+			nextIns[1] = nextIns1 - 1
+			updateCounter = true
+			branch = branch1
+		}
+	} else if branch2 > 0 {
+		nextIns[0] = nextIns2 - 2
+		nextIns[1] = nextIns2 - 1
+		updateCounter = true
+		branch = branch2
+	}
+
+	if branch1 == 2 {
+		bus.Fet_forkCount <- int(count1)
+	} else if branch2 == 2 {
+		bus.Fet_forkCount <- int(count2)
+	} else {
+		bus.Fet_forkCount <- 0
 	}
 
 	bus.NIns <- nextIns
-	bus.Bran <- branch1
+	bus.Bran <- branch
+	bus.UpdtCount <- updateCounter
 
 	datOpr, brOpr, datOpds, brOpds, datFirst := issue(opr1, opr2, opds1, opds2)
 

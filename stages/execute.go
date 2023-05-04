@@ -21,9 +21,11 @@ type ExChans struct {
 }
 
 type ExCache struct {
-	StallCycles chan int
-	StallmRegs  chan []c.CaAddr
-	StallData   chan []byte
+	StallCycles  chan int
+	StallmRegs   chan []c.CaAddr
+	StallData    chan []byte
+	StallBrTaken chan bool
+	StallHalt    chan bool
 }
 
 func mvEle2Front(array []c.CaAddr, pos int) []c.CaAddr {
@@ -162,7 +164,7 @@ func executeDat(opr op.Op, opds []int, mem c.Memory, sysCa c.SysCache) (
 			result = opds[1] - opds[2]
 
 		case op.Mul:
-			stallCycles = 3
+			stallCycles = 10
 
 			result = opds[1] * opds[2]
 
@@ -272,7 +274,7 @@ func executeBr(opr op.Op, opds []int) (int, int, byte, bool, int, bool) {
 			result = opds[1] - opds[2]
 
 		case op.Mul:
-			stallCycles = 3
+			stallCycles = 10
 
 			result = opds[1] * opds[2]
 
@@ -335,6 +337,8 @@ func Execute(flg c.Flags, mem c.Memory, sysCa c.SysCache, buf c.Buffer, bus ExCh
 	stallCycles := <-cache.StallCycles
 	stallData := <-cache.StallData
 	stallmRegs := <-cache.StallmRegs
+	stallBrTaken := <-cache.StallBrTaken
+	stallHalt := <-cache.StallHalt
 
 	datOpc := uint(decData[0])
 	datOpr := op.MatchOpc(datOpc)
@@ -356,16 +360,15 @@ func Execute(flg c.Flags, mem c.Memory, sysCa c.SysCache, buf c.Buffer, bus ExCh
 
 	datFirst := decData[26]
 
+	lastCycleStall := false
 	stall := false
 	if stallCycles > 0 {
+		lastCycleStall = true
 		stall = true
 		datOpr = op.Nop
 		brOpr = op.Nop
-	} else {
-		stall = datOpr == op.Mul || datOpr == op.Div || datOpr == op.Ld ||
-			brOpr == op.Mul || brOpr == op.Div || brOpr == op.Beq || brOpr == op.Bz
+		stallCycles--
 	}
-	bus.Dec_stall <- stall
 
 	<-bus.MemOk
 	datResult, datDReg, memLoc, datWb,
@@ -374,18 +377,42 @@ func Execute(flg c.Flags, mem c.Memory, sysCa c.SysCache, buf c.Buffer, bus ExCh
 	brResult, brDReg, brWb, brTaken,
 		brStallCys, brHalt := executeBr(brOpr, brOpds)
 
-	halt := datHalt || brHalt
-	bus.Wb_wrtMRegs <- halt
-	if halt {
-		flg.Halt <- true
+	if !stall {
+		stallCycles = datStallCys
+		if brStallCys > stallCycles {
+			stallCycles = brStallCys
+		}
 	}
 
-	bus.BTaken <- brTaken
-	bus.Dec_dis <- !brTaken
+	if stallCycles > 0 {
+		stall = true
+	}
 
-	stallCycles = datStallCys
-	if brStallCys > stallCycles {
-		stallCycles = brStallCys
+	bus.Dec_stall <- stall
+
+	halt := datHalt || brHalt
+
+	if !stall {
+		bus.BTaken <- brTaken
+		bus.Dec_dis <- !brTaken
+
+		bus.Wb_wrtMRegs <- halt
+		flg.Halt <- halt
+	} else if stallCycles == 0 {
+		bus.BTaken <- stallBrTaken
+		bus.Dec_dis <- !stallBrTaken
+
+		bus.Wb_wrtMRegs <- stallHalt
+		flg.Halt <- stallHalt
+	} else {
+		bus.BTaken <- true
+		bus.Dec_dis <- false
+
+		bus.Wb_wrtMRegs <- false
+		flg.Halt <- false
+		if !lastCycleStall {
+			stallBrTaken = brTaken
+		}
 	}
 
 	<-bus.MRegsOk
@@ -445,7 +472,6 @@ func Execute(flg c.Flags, mem c.Memory, sysCa c.SysCache, buf c.Buffer, bus ExCh
 	}
 
 	if stall {
-		stallCycles--
 		if stallCycles == 0 {
 			memData = stallData
 		}
@@ -454,6 +480,8 @@ func Execute(flg c.Flags, mem c.Memory, sysCa c.SysCache, buf c.Buffer, bus ExCh
 	cache.StallCycles <- stallCycles
 	cache.StallData <- stallData
 	cache.StallmRegs <- stallmRegs
+	cache.StallBrTaken <- stallBrTaken
+	cache.StallHalt <- stallHalt
 
 	buf.Out <- memData
 

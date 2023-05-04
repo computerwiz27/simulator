@@ -113,6 +113,8 @@ func busInit() (s.FetChans, s.DecChans, s.ExChans, s.MemChans, s.WbChans) {
 	bran := make(chan int)
 	bTaken := make(chan bool)
 	fet_stall := make(chan bool)
+	fet_uptcount := make(chan bool)
+	fet_forkCount := make(chan int)
 
 	//decode channels
 	dec_dis := make(chan bool)
@@ -128,19 +130,23 @@ func busInit() (s.FetChans, s.DecChans, s.ExChans, s.MemChans, s.WbChans) {
 	wb_mRegsOk := make(chan bool)
 
 	fetCh := s.FetChans{
-		NIns:   dec_nIns,
-		Bran:   bran,
-		BTaken: bTaken,
-		Stall:  fet_stall,
+		NIns:      dec_nIns,
+		Bran:      bran,
+		BTaken:    bTaken,
+		Stall:     fet_stall,
+		UpdtCount: fet_uptcount,
+		ForkCount: fet_forkCount,
 	}
 
 	decCh := s.DecChans{
-		NIns:      dec_nIns,
-		Bran:      bran,
-		Dis:       dec_dis,
-		Stall:     dec_stall,
-		Fet_stall: fet_stall,
-		MRegOk:    dec_mRegsOk,
+		NIns:          dec_nIns,
+		Bran:          bran,
+		Dis:           dec_dis,
+		Stall:         dec_stall,
+		Fet_stall:     fet_stall,
+		MRegOk:        dec_mRegsOk,
+		UpdtCount:     fet_uptcount,
+		Fet_forkCount: fet_forkCount,
 	}
 
 	exCh := s.ExChans{
@@ -204,12 +210,15 @@ func cacheInit() (c.Cache, c.Cache, c.Cache, c.Cache,
 	//Fetch cache
 	forks := make(chan []uint, 1)
 	forks <- make([]uint, 0)
+	lastCount := make(chan uint, 1)
+	lastCount <- uint(0)
 	bLast := make(chan bool, 1)
 	bLast <- false
 	fet_lastStall := make(chan bool, 1)
 	fet_lastStall <- false
 	fetCa := s.FetCache{
 		Forks:     forks,
+		LastCount: lastCount,
 		LCyBranch: bLast,
 		LCyStall:  fet_lastStall,
 	}
@@ -237,10 +246,16 @@ func cacheInit() (c.Cache, c.Cache, c.Cache, c.Cache,
 	ex_stallData <- make([]byte, 14)
 	ex_stallmRegs := make(chan []c.CaAddr, 1)
 	ex_stallmRegs <- make([]c.CaAddr, 0)
+	ex_stallBrTaken := make(chan bool, 1)
+	ex_stallBrTaken <- true
+	ex_stallHalt := make(chan bool, 1)
+	ex_stallHalt <- false
 	exCa := s.ExCache{
-		StallCycles: ex_stallCycles,
-		StallData:   ex_stallData,
-		StallmRegs:  ex_stallmRegs,
+		StallCycles:  ex_stallCycles,
+		StallData:    ex_stallData,
+		StallmRegs:   ex_stallmRegs,
+		StallBrTaken: ex_stallBrTaken,
+		StallHalt:    ex_stallHalt,
 	}
 
 	return l1Cache, l2Cache, l3Cache, modRegCa, fetCa, decCa, exCa
@@ -470,7 +485,6 @@ func Run(memFile []byte, memOut string, progFile []byte, stepMode bool) {
 	}
 
 	cycles := uint(0)
-cycle:
 	for {
 		if stepMode {
 			stepMode = step(cycles, registers, decBuf, memBuf,
@@ -491,10 +505,8 @@ cycle:
 		cycles++
 
 		//if the halt flag has been raised, break and exit
-		select {
-		case <-flags.Halt:
-			break cycle
-		default:
+		if <-flags.Halt {
+			break
 		}
 	}
 

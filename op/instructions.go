@@ -73,7 +73,7 @@ var Jmp = Op{
 	OffSet: false,
 }
 
-// BEQ regSA regSB [inst no]
+// BEQ regSA regSB/val [inst no]
 var Beq = Op{
 	Name:   "BEQ",
 	Opc:    BEQ,
