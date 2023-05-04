@@ -10,6 +10,7 @@ type Op struct {
 	Opc    uint
 	Class  string
 	OpNo   int
+	Stall  int
 	Imd    bool
 	OffSet bool
 }
@@ -27,6 +28,8 @@ const (
 	SUB
 	MUL
 	DIV
+	SL
+	SR
 
 	//Logical operations
 	AND
@@ -49,6 +52,7 @@ var Nop = Op{
 	Opc:    NOP,
 	Class:  "ctf",
 	OpNo:   0,
+	Stall:  0,
 	Imd:    false,
 	OffSet: false,
 }
@@ -59,6 +63,7 @@ var Hlt = Op{
 	Opc:    HLT,
 	Class:  "ctf",
 	OpNo:   0,
+	Stall:  0,
 	Imd:    false,
 	OffSet: false,
 }
@@ -69,6 +74,7 @@ var Jmp = Op{
 	Opc:    JMP,
 	Class:  "ctf",
 	OpNo:   1,
+	Stall:  0,
 	Imd:    false,
 	OffSet: false,
 }
@@ -79,6 +85,7 @@ var Beq = Op{
 	Opc:    BEQ,
 	Class:  "ctf",
 	OpNo:   3,
+	Stall:  1,
 	Imd:    true,
 	OffSet: false,
 }
@@ -89,6 +96,7 @@ var Bz = Op{
 	Opc:    BZ,
 	Class:  "ctf",
 	OpNo:   2,
+	Stall:  1,
 	Imd:    false,
 	OffSet: false,
 }
@@ -101,6 +109,7 @@ var Add = Op{
 	Opc:    ADD,
 	Class:  "ari",
 	OpNo:   3,
+	Stall:  0,
 	Imd:    true,
 	OffSet: false,
 }
@@ -111,6 +120,7 @@ var Sub = Op{
 	Opc:    SUB,
 	Class:  "ari",
 	OpNo:   3,
+	Stall:  0,
 	Imd:    true,
 	OffSet: false,
 }
@@ -121,6 +131,7 @@ var Mul = Op{
 	Opc:    MUL,
 	Class:  "ari",
 	OpNo:   3,
+	Stall:  3,
 	Imd:    true,
 	OffSet: false,
 }
@@ -131,6 +142,27 @@ var Div = Op{
 	Opc:    DIV,
 	Class:  "ari",
 	OpNo:   3,
+	Stall:  16,
+	Imd:    true,
+	OffSet: false,
+}
+
+var Sl = Op{
+	Name:   "SL",
+	Opc:    SL,
+	Class:  "ari",
+	OpNo:   3,
+	Stall:  0,
+	Imd:    true,
+	OffSet: false,
+}
+
+var Sr = Op{
+	Name:   "SR",
+	Opc:    SR,
+	Class:  "ari",
+	OpNo:   3,
+	Stall:  0,
 	Imd:    true,
 	OffSet: false,
 }
@@ -143,6 +175,7 @@ var And = Op{
 	Opc:    AND,
 	Class:  "log",
 	OpNo:   3,
+	Stall:  0,
 	Imd:    true,
 	OffSet: false,
 }
@@ -153,6 +186,7 @@ var Or = Op{
 	Opc:    OR,
 	Class:  "log",
 	OpNo:   3,
+	Stall:  0,
 	Imd:    true,
 	OffSet: false,
 }
@@ -163,6 +197,7 @@ var Xor = Op{
 	Opc:    XOR,
 	Class:  "log",
 	OpNo:   3,
+	Stall:  0,
 	Imd:    true,
 	OffSet: false,
 }
@@ -173,6 +208,7 @@ var Not = Op{
 	Opc:    NOT,
 	Class:  "log",
 	OpNo:   2,
+	Stall:  0,
 	Imd:    true,
 	OffSet: false,
 }
@@ -183,6 +219,7 @@ var Cmp = Op{
 	Opc:    CMP,
 	Class:  "log",
 	OpNo:   3,
+	Stall:  0,
 	Imd:    true,
 	OffSet: false,
 }
@@ -195,6 +232,7 @@ var Ld = Op{
 	Opc:    LD,
 	Class:  "dat",
 	OpNo:   2,
+	Stall:  0,
 	Imd:    true,
 	OffSet: true,
 }
@@ -205,6 +243,7 @@ var Wrt = Op{
 	Opc:    WRT,
 	Class:  "dat",
 	OpNo:   2,
+	Stall:  0,
 	Imd:    true,
 	OffSet: true,
 }
@@ -215,6 +254,7 @@ var Mv = Op{
 	Opc:    MV,
 	Class:  "dat",
 	OpNo:   2,
+	Stall:  0,
 	Imd:    true,
 	OffSet: false,
 }

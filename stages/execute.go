@@ -140,6 +140,10 @@ func executeDat(opr op.Op, opds []int, mem c.Memory, sysCa c.SysCache) (
 	var memLoc int
 	var result int
 
+	if opr != op.Ld {
+		stallCycles = opr.Stall
+	}
+
 	switch opr.Class {
 	case "ctf":
 		switch opr {
@@ -164,13 +168,9 @@ func executeDat(opr op.Op, opds []int, mem c.Memory, sysCa c.SysCache) (
 			result = opds[1] - opds[2]
 
 		case op.Mul:
-			stallCycles = 10
-
 			result = opds[1] * opds[2]
 
 		case op.Div:
-			stallCycles = 16
-
 			if opds[2] == 0 {
 				result = 0
 			} else {
@@ -234,7 +234,6 @@ func executeDat(opr op.Op, opds []int, mem c.Memory, sysCa c.SysCache) (
 func executeBr(opr op.Op, opds []int) (int, int, byte, bool, int, bool) {
 	wb := byte(0)
 	halt := false
-	stallCycles := 0
 	branchTaken := true
 
 	var desReg int
@@ -249,13 +248,9 @@ func executeBr(opr op.Op, opds []int) (int, int, byte, bool, int, bool) {
 			halt = true
 
 		case op.Beq:
-			stallCycles = 1
-
 			branchTaken = opds[0] == opds[1]
 
 		case op.Bz:
-			stallCycles = 1
-
 			branchTaken = opds[0] == 0
 
 		case op.Jmp:
@@ -274,13 +269,9 @@ func executeBr(opr op.Op, opds []int) (int, int, byte, bool, int, bool) {
 			result = opds[1] - opds[2]
 
 		case op.Mul:
-			stallCycles = 10
-
 			result = opds[1] * opds[2]
 
 		case op.Div:
-			stallCycles = 16
-
 			if opds[2] == 0 {
 				result = 0
 			} else {
@@ -325,7 +316,7 @@ func executeBr(opr op.Op, opds []int) (int, int, byte, bool, int, bool) {
 		}
 	}
 
-	return result, desReg, wb, branchTaken, stallCycles, halt
+	return result, desReg, wb, branchTaken, opr.Stall, halt
 }
 
 // Execute given instruction
